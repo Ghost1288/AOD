@@ -1,0 +1,11 @@
+aiohttp
+mss
+Pillow
+numpy
+pynput
+qrcode
+cryptography
+pystray
+psutil
+pyperclip
+aiortc

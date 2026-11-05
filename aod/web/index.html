@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b1020">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<title>AOD</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="connect" class="screen">
+  <div class="logo">AOD</div>
+  <p id="connect-msg">Connecting…</p>
+  <form id="pair-form" hidden>
+    <p class="muted">Paste the link (or just the token) shown on your PC.</p>
+    <input id="pair-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="http://…/#token=…">
+    <button type="submit">Connect</button>
+  </form>
+</div>
+
+<div id="main" hidden>
+  <header id="bar">
+    <span id="dot" class="dot"></span>
+    <span id="host">AOD</span>
+    <span class="spacer"></span>
+    <select id="monitor" hidden></select>
+    <button id="b-mode" title="Touch mode">Pad</button>
+    <button id="b-kb" title="Keyboard">⌨</button>
+    <button id="b-keys" title="Special keys">Keys</button>
+    <button id="b-files" title="Files">Files</button>
+    <button id="b-menu" title="Menu">⋯</button>
+  </header>
+
+  <div id="stage"><canvas id="screen"></canvas><div id="hint"></div></div>
+
+  <div id="keys" hidden>
+    <button data-mod="ctrl">Ctrl</button><button data-mod="alt">Alt</button>
+    <button data-mod="shift">Shift</button><button data-mod="win">Win</button>
+    <button data-key="esc">Esc</button><button data-key="tab">Tab</button>
+    <button data-key="up">↑</button><button data-key="down">↓</button>
+    <button data-key="left">←</button><button data-key="right">→</button>
+    <button data-key="delete">Del</button><button data-key="home">Home</button>
+    <button data-key="end">End</button><button data-key="pageup">PgUp</button>
+    <button data-key="pagedown">PgDn</button>
+    <button data-hot="alt,tab">Alt+Tab</button><button data-hot="ctrl,c">Copy</button>
+    <button data-hot="ctrl,v">Paste</button><button data-hot="ctrl,z">Undo</button>
+    <button data-hot="win,d">Desktop</button><button data-hot="ctrl,shift,esc">Task Mgr</button>
+    <button data-key="volup">Vol+</button><button data-key="voldown">Vol−</button>
+    <button data-key="mute">Mute</button><button data-key="playpause">⏯</button>
+  </div>
+  <input id="kb" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="keyboard">
+</div>
+
+<aside id="files" hidden>
+  <div class="panel-head">
+    <button id="f-up">↑</button><span id="f-path"></span>
+    <button id="f-upload">Upload here</button><button id="f-close">✕</button>
+  </div>
+  <div id="f-list"></div>
+  <input id="f-input" type="file" multiple hidden>
+</aside>
+
+<aside id="menu" hidden>
+  <div class="panel-head"><b>Menu</b><span class="spacer"></span><button id="m-close">✕</button></div>
+  <label>Quality <input id="s-quality" type="range" min="20" max="95" value="55"></label>
+  <label>Sharpness <input id="s-scale" type="range" min="20" max="100" value="60"></label>
+  <label>Frame rate <input id="s-fps" type="range" min="2" max="30" value="12"></label>
+  <label>Pointer speed <input id="s-speed" type="range" min="5" max="40" value="14"></label>
+  <hr>
+  <button data-power="lock">Lock PC</button>
+  <button data-power="sleep">Sleep</button>
+  <button data-power="restart">Restart (10s delay)</button>
+  <button data-power="shutdown">Shut down (10s delay)</button>
+  <button data-power="cancel">Cancel pending shutdown</button>
+  <hr>
+  <button id="m-forget">Forget this PC</button>
+</aside>
+
+<div id="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

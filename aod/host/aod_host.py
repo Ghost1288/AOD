@@ -1,0 +1,446 @@
+"""AOD host (Windows): screen + audio streaming, remote input, files, tasks, power.
+
+Run:  python aod_host.py        (or the installed AOD app)
+"""
+import asyncio
+import io
+import json
+import os
+import ssl
+import sys
+import time
+from pathlib import Path
+
+from aiohttp import web, WSMsgType
+
+try:  # real pixel coordinates on high-DPI Windows screens
+    import ctypes
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    pass
+
+from pynput.keyboard import Controller as Keyboard, Key
+from pynput.mouse import Controller as Mouse, Button
+
+import aod_features as feat
+import aod_rtc
+import aod_security as sec
+
+PORT = int(os.environ.get("AOD_PORT", "8765"))
+ADMIN_PORT = PORT + 1
+ADMIN_URL = f"http://127.0.0.1:{ADMIN_PORT}/"
+BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+STATIC = BASE / "static"
+APP_VERSION = "2.0"
+
+mouse, keyboard = Mouse(), Keyboard()
+devices = sec.Devices()
+state = sec.State()
+capturer = aod_rtc.Capturer()
+sessions = set()          # live websockets (for the kill switch)
+CERT, KEY, FINGERPRINT = sec.ensure_cert()
+
+SPECIAL_KEYS = {
+    "enter": Key.enter, "backspace": Key.backspace, "tab": Key.tab, "esc": Key.esc,
+    "space": Key.space, "delete": Key.delete, "up": Key.up, "down": Key.down,
+    "left": Key.left, "right": Key.right, "home": Key.home, "end": Key.end,
+    "pageup": Key.page_up, "pagedown": Key.page_down, "ctrl": Key.ctrl, "alt": Key.alt,
+    "shift": Key.shift, "win": Key.cmd, "printscreen": Key.print_screen,
+    "volup": Key.media_volume_up, "voldown": Key.media_volume_down, "mute": Key.media_volume_mute,
+    "playpause": Key.media_play_pause, "next": Key.media_next, "prev": Key.media_previous,
+    **{f"f{i}": getattr(Key, f"f{i}") for i in range(1, 13)},
+}
+BUTTONS = {"left": Button.left, "right": Button.right, "middle": Button.middle}
+
+
+# ------------------------------------------------------------------ auth
+def authed(request: web.Request) -> str:
+    if not state.enabled:
+        raise web.HTTPServiceUnavailable(text="AOD is paused on the PC")
+    h = request.headers.get("Authorization", "")
+    token = h[7:] if h.startswith("Bearer ") else request.query.get("token")
+    did = devices.check(token)
+    if not did:
+        raise web.HTTPUnauthorized()
+    devices.touch(did, request.remote)
+    return did
+
+
+def loopback_only(request: web.Request) -> None:
+    if request.remote not in ("127.0.0.1", "::1") or request.headers.get("X-AOD-Admin") != "1" and request.method != "GET":
+        raise web.HTTPForbidden()
+
+
+# ------------------------------------------------------------------ pairing
+async def pair(request: web.Request) -> web.Response:
+    ip = request.remote
+    if not state.pairing_allowed or not state.enabled:
+        return web.json_response({"error": "pairing is turned off on the PC"}, status=403)
+    if state.locked(ip):
+        return web.json_response({"error": "too many wrong PINs, try again in a few minutes"}, status=429)
+    data = await request.json()
+    if not state.pin_ok(ip, data.get("pin", "")):
+        return web.json_response({"error": "wrong PIN"}, status=401)
+    name = str(data.get("name") or "Phone")[:60]
+    loop = asyncio.get_running_loop()
+    if not await loop.run_in_executor(None, sec.ask_approval, state, name, ip):
+        return web.json_response({"error": "denied on the PC"}, status=403)
+    token = devices.add(name, ip)
+    state.rotate_pin()
+    return web.json_response({"token": token})
+
+
+# ------------------------------------------------------------------ input
+def apply_input(msg: dict, mon: dict) -> None:
+    t = msg.get("t")
+    if t == "move":
+        mouse.move(int(msg["dx"]), int(msg["dy"]))
+    elif t == "abs":
+        mouse.position = (mon["left"] + int(msg["x"] * mon["width"]),
+                          mon["top"] + int(msg["y"] * mon["height"]))
+    elif t == "click":
+        mouse.click(BUTTONS.get(msg.get("b", "left"), Button.left), int(msg.get("n", 1)))
+    elif t == "down":
+        mouse.press(BUTTONS.get(msg.get("b", "left"), Button.left))
+    elif t == "up":
+        mouse.release(BUTTONS.get(msg.get("b", "left"), Button.left))
+    elif t == "scroll":
+        mouse.scroll(int(msg.get("dx", 0)), int(msg.get("dy", 0)))
+    elif t == "text":
+        keyboard.type(str(msg["s"])[:2000])
+    elif t == "key":
+        combo = [SPECIAL_KEYS[k] if k in SPECIAL_KEYS else k
+                 for k in msg.get("keys", []) if k in SPECIAL_KEYS or len(k) == 1]
+        for k in combo:
+            keyboard.press(k)
+        for k in reversed(combo):
+            keyboard.release(k)
+
+
+# ------------------------------------------------------------------ websocket
+async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+    authed(request)
+    ws = web.WebSocketResponse(max_msg_size=1 << 20, heartbeat=20)
+    await ws.prepare(request)
+    sessions.add(ws)
+    loop = asyncio.get_running_loop()
+
+    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0}
+    mons = await capturer.monitors()
+    tasks, pcs = {}, []
+    last_clip = {"v": await loop.run_in_executor(None, feat.clip_get)}
+
+    def mon_geom():
+        return mons[min(st["mon"], len(mons)) - 1]
+
+    async def send_info():
+        m = mon_geom()
+        await ws.send_json({"t": "info", "monitors": len(mons), "current": st["mon"],
+                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK,
+                            "version": APP_VERSION})
+
+    async def jpeg_loop():
+        while not ws.closed:
+            t0 = time.monotonic()
+            data = await capturer.jpeg(st["mon"], st["scale"], int(st["quality"]))
+            await ws.send_bytes(data)
+            await asyncio.sleep(max(0, 1 / st["fps"] - (time.monotonic() - t0)))
+
+    async def cursor_loop():
+        last = None
+        while not ws.closed:
+            m = mon_geom()
+            x, y = mouse.position
+            cur = (round((x - m["left"]) / m["width"], 4), round((y - m["top"]) / m["height"], 4))
+            if cur != last:
+                last = cur
+                await ws.send_json({"t": "cur", "x": cur[0], "y": cur[1]})
+            await asyncio.sleep(0.04)
+
+    async def clip_loop():
+        while not ws.closed:
+            await asyncio.sleep(1)
+            v = await loop.run_in_executor(None, feat.clip_get)
+            if v != last_clip["v"] and len(v) < 200_000:
+                last_clip["v"] = v
+                await ws.send_json({"t": "clip", "s": v})
+
+    async def rtc_closed():
+        if not ws.closed and "jpeg" not in tasks and "rtc_failed" not in tasks:
+            await ws.send_json({"t": "rtc_closed"})
+
+    tasks["cursor"] = asyncio.create_task(cursor_loop())
+    tasks["clip"] = asyncio.create_task(clip_loop())
+    await send_info()
+
+    try:
+        async for m in ws:
+            if m.type != WSMsgType.TEXT:
+                continue
+            try:
+                msg = json.loads(m.data)
+            except ValueError:
+                continue
+            t = msg.get("t")
+            if t == "cfg":
+                for k, lo, hi in (("scale", 0.2, 1.0), ("quality", 20, 90), ("fps", 3, 60), ("rtc_scale", 0.25, 1.0)):
+                    if k in msg:
+                        st[k] = min(hi, max(lo, float(msg[k])))
+            elif t == "monitor":
+                mons = await capturer.monitors()
+                st["mon"] = min(max(1, int(msg["i"])), len(mons))
+                await send_info()
+            elif t == "jpeg":
+                if "jpeg" not in tasks:
+                    tasks["jpeg"] = asyncio.create_task(jpeg_loop())
+            elif t == "offer" and aod_rtc.RTC_OK:
+                try:
+                    pc, sdp = await aod_rtc.answer_offer(msg["sdp"], capturer, st,
+                                                         bool(msg.get("audio", True)), rtc_closed)
+                    pcs.append(pc)
+                    await ws.send_json({"t": "answer", "sdp": sdp})
+                except Exception as e:
+                    print("WebRTC failed:", e)
+                    tasks["rtc_failed"] = None
+                    await ws.send_json({"t": "rtc_error", "error": str(e)})
+            elif t == "clip_set":
+                s = str(msg.get("s", ""))[:200_000]
+                last_clip["v"] = s
+                await loop.run_in_executor(None, feat.clip_set, s)
+            elif t == "clip_get":
+                await ws.send_json({"t": "clip", "s": await loop.run_in_executor(None, feat.clip_get)})
+            else:
+                try:
+                    apply_input(msg, mon_geom())
+                except Exception as e:
+                    print("input error:", e)
+    finally:
+        sessions.discard(ws)
+        for task in tasks.values():
+            if task:
+                task.cancel()
+        for pc in pcs:
+            await pc.close()
+    return ws
+
+
+# ------------------------------------------------------------------ REST (authenticated)
+async def api_sysinfo(request):
+    authed(request)
+    info = await asyncio.get_running_loop().run_in_executor(None, feat.sysinfo, sec.lan_ip())
+    return web.json_response(info)
+
+
+async def api_procs(request):
+    authed(request)
+    return web.json_response(await asyncio.get_running_loop().run_in_executor(None, feat.processes))
+
+
+async def api_kill(request):
+    authed(request)
+    pid = int((await request.json())["pid"])
+    return web.json_response({"ok": feat.kill(pid)})
+
+
+async def api_power(request):
+    authed(request)
+    action = (await request.json()).get("action")
+    return web.json_response({"ok": feat.power(action)})
+
+
+async def api_roots(request):
+    authed(request)
+    return web.json_response(feat.roots())
+
+
+async def api_files(request):
+    authed(request)
+    try:
+        return web.json_response(feat.listdir(request.query.get("path") or str(Path.home())))
+    except OSError as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+
+async def api_download(request):
+    authed(request)
+    p = Path(request.query.get("path", "")).resolve()
+    if not p.is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(p, headers={"Content-Disposition": f'attachment; filename="{p.name}"'})
+
+
+async def api_upload(request):
+    authed(request)
+    dest = Path(request.query.get("dir") or Path.home() / "Downloads" / "AOD").expanduser()
+    dest.mkdir(parents=True, exist_ok=True)
+    saved = []
+    reader = await request.multipart()
+    while (part := await reader.next()) is not None:
+        if not part.filename:
+            continue
+        target = feat.unique_path(dest, part.filename)
+        with open(target, "wb") as f:
+            while chunk := await part.read_chunk(1 << 20):
+                f.write(chunk)
+        saved.append(str(target))
+    return web.json_response({"saved": saved})
+
+
+async def api_devices(request):
+    authed(request)
+    return web.json_response(devices.public_list())
+
+
+async def api_device_revoke(request):
+    did = authed(request)
+    target = request.match_info["id"]
+    ok = devices.revoke(target)
+    if target == did:
+        for w in list(sessions):
+            await w.close()
+    return web.json_response({"ok": ok})
+
+
+# ------------------------------------------------------------------ admin page (PC only)
+def urls():
+    ip = sec.lan_ip()
+    base = f"https://{ip}:{PORT}"
+    pin = state.current_pin()
+    return ip, base, pin
+
+
+async def admin_page(request):
+    loopback_only(request)
+    return web.FileResponse(STATIC / "admin.html")
+
+
+async def admin_state(request):
+    loopback_only(request)
+    ip, base, pin = urls()
+    return web.json_response({
+        "url": base, "pin": pin, "pin_expires": int(sec.PIN_LIFETIME - (time.time() - state.pin_time)),
+        "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
+        "devices": devices.public_list(), "version": APP_VERSION,
+        "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT})
+
+
+def qr_png(data: str) -> bytes:
+    import qrcode
+    buf = io.BytesIO()
+    qrcode.make(data, box_size=6, border=2).save(buf, "PNG")
+    return buf.getvalue()
+
+
+async def admin_qr(request):
+    loopback_only(request)
+    ip, base, pin = urls()
+    kind = request.query.get("kind", "app")
+    data = (f"aod://pair?host={ip}&port={PORT}&fp={FINGERPRINT}&pin={pin}" if kind == "app"
+            else f"{base}/?pin={pin}")
+    return web.Response(body=qr_png(data), content_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+async def admin_action(request):
+    loopback_only(request)
+    a = request.match_info["a"]
+    if a == "revoke_all":
+        devices.revoke_all()
+        for w in list(sessions):
+            await w.close()
+    elif a == "revoke":
+        devices.revoke(request.query.get("id", ""))
+    elif a == "pause":
+        set_enabled(not state.enabled)
+    elif a == "pairing":
+        state.pairing_allowed = not state.pairing_allowed
+    elif a == "new_pin":
+        state.rotate_pin()
+    return web.json_response({"ok": True})
+
+
+def set_enabled(on: bool) -> None:
+    """Kill switch. Pausing also drops every live connection."""
+    state.enabled = on
+    if not on:
+        for w in list(sessions):
+            asyncio.run_coroutine_threadsafe(w.close(), LOOP)
+
+
+LOOP = None
+
+
+async def on_startup(app):
+    global LOOP
+    LOOP = asyncio.get_running_loop()
+
+
+def make_app() -> web.Application:
+    app = web.Application()
+    r = app.router
+    r.add_post("/api/pair", pair)
+    r.add_get("/ws", ws_handler)
+    r.add_get("/api/sysinfo", api_sysinfo)
+    r.add_get("/api/procs", api_procs)
+    r.add_post("/api/kill", api_kill)
+    r.add_post("/api/power", api_power)
+    r.add_get("/api/roots", api_roots)
+    r.add_get("/api/files", api_files)
+    r.add_get("/api/download", api_download)
+    r.add_post("/api/upload", api_upload)
+    r.add_get("/api/devices", api_devices)
+    r.add_delete("/api/devices/{id}", api_device_revoke)
+    r.add_get("/", lambda req: web.FileResponse(STATIC / "index.html"))
+    r.add_static("/", STATIC)
+    return app
+
+
+def make_admin_app() -> web.Application:
+    """PC-only dashboard: plain HTTP on 127.0.0.1, so no certificate warning and unreachable from the network."""
+    app = web.Application()
+    r = app.router
+    r.add_get("/", admin_page)
+    r.add_get("/_admin/state", admin_state)
+    r.add_get("/_admin/qr.png", admin_qr)
+    r.add_post("/_admin/{a}", admin_action)
+    return app
+
+
+async def serve() -> None:
+    global LOOP
+    LOOP = asyncio.get_running_loop()
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(CERT, KEY)
+    r1 = web.AppRunner(make_app())
+    await r1.setup()
+    await web.TCPSite(r1, "0.0.0.0", PORT, ssl_context=ctx).start()
+    r2 = web.AppRunner(make_admin_app())
+    await r2.setup()
+    await web.TCPSite(r2, "127.0.0.1", ADMIN_PORT).start()
+    print("AOD is running. Leave this window open (or use the tray icon).")
+    if os.environ.get("AOD_NO_BROWSER") != "1":
+        import webbrowser
+        webbrowser.open(ADMIN_URL)   # only now: the server is listening
+    await asyncio.Event().wait()
+
+
+def main() -> None:
+    import webbrowser
+    import aod_tray
+    ip, base, pin = urls()
+    print("\n=== AOD host ===")
+    print(f"Dashboard (this PC):  {ADMIN_URL}   <- opens automatically")
+    print(f"Phone (same Wi-Fi):   {base}")
+    print(f"Pairing PIN:          {pin}\n")
+    try:
+        import qrcode
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(f"{base}/?pin={pin}")
+        qr.print_ascii(invert=True)
+    except Exception:
+        pass
+    aod_tray.start(ADMIN_URL, state, devices, set_enabled)
+    asyncio.run(serve())
+
+
+if __name__ == "__main__":
+    main()

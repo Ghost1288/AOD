@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>AOD</title>
+<style>
+:root{--bg:#0b0d12;--panel:#151922;--line:#262c3a;--fg:#e8ecf4;--dim:#8b93a7;--accent:#4ade80;--bad:#f87171}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
+button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-height:42px}
+button.primary{background:var(--accent);color:#04210f;border:0;font-weight:700}
+button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--bad)}
+.dim{color:var(--dim)}
+#pair{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+#pair h1{font-size:44px;letter-spacing:.15em;margin:0}
+#pin{font-size:32px;letter-spacing:.4em;text-align:center;width:11em;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--fg)}
+#err{color:var(--bad);min-height:1.2em}
+#app{display:none;height:100%;flex-direction:column}
+.view{display:none;flex:1;min-height:0;flex-direction:column}.view.active{display:flex}
+#stage{flex:1;position:relative;touch-action:none;background:#000;min-height:0;overflow:hidden}
+#media{position:absolute;inset:0;transform-origin:0 0}
+#vid,#cv{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#cv{display:none}
+#cur{position:absolute;width:14px;height:14px;margin:-3px 0 0 -3px;border:2px solid #fff;border-radius:50%;background:#4ade8099;pointer-events:none;box-shadow:0 0 0 1px #000}
+#status{position:absolute;top:8px;left:8px;font-size:12px;color:var(--dim);background:#000a;padding:3px 8px;border-radius:8px;pointer-events:none}
+#unhide{display:none;position:absolute;top:8px;right:8px;opacity:.6;padding:4px 10px;min-height:34px}
+.bar{display:flex;gap:6px;padding:6px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.bar button{padding:6px 12px;min-height:40px;white-space:nowrap;flex:none}
+#nav button{flex:1;border-radius:0;border:0;background:var(--panel);color:var(--dim);min-height:48px}
+#nav button.active{color:var(--accent)}
+#nav{display:flex;border-top:1px solid var(--line);background:var(--panel);padding-bottom:env(safe-area-inset-bottom)}
+.sheet{display:none;padding:12px 14px;background:var(--panel);border-top:1px solid var(--line);gap:10px;flex-direction:column;font-size:14px}
+.sheet label{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--dim)}
+.sheet input[type=range]{flex:1}.sheet textarea{width:100%;height:90px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit}
+.page{flex:1;overflow-y:auto;padding:12px 14px}
+.page h3{margin:16px 0 8px;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}.stat b{display:block;font-size:20px}
+.list>div{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.list .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px}.chips button{flex:none;min-height:34px;padding:4px 12px}
+.bar2{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.bar2>i{display:block;height:100%;background:var(--accent)}
+#kb{position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0}
+</style>
+</head>
+<body>
+<div id="pair">
+  <h1>AOD</h1>
+  <p class="dim" style="margin:0">Enter the PIN from the AOD dashboard on your PC.<br>You'll then approve this phone on the PC.</p>
+  <input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
+  <button class="primary" id="go" style="width:11em">Connect</button>
+  <div id="err"></div>
+</div>
+
+<div id="app">
+  <!-- SCREEN -->
+  <div class="view active" id="v-screen">
+    <div id="stage">
+      <div id="media"><video id="vid" autoplay playsinline muted></video><canvas id="cv"></canvas><div id="cur"></div></div>
+      <div id="status">connecting…</div>
+      <button id="unhide">Show bars</button>
+    </div>
+    <div class="sheet" id="settings">
+      <label>Resolution <input type="range" id="sc" min="25" max="100" value="100"></label>
+      <label>Quality (JPEG mode) <input type="range" id="q" min="20" max="90" value="55"></label>
+      <label>Frame rate <input type="range" id="fps" min="5" max="60" value="30"></label>
+      <label>Cursor speed <input type="range" id="sens" min="5" max="40" value="15"></label>
+      <div style="display:flex;gap:8px"><button id="bVideo" style="flex:1">Video: auto</button><button id="bZoom" style="flex:1">Reset zoom</button></div>
+    </div>
+    <div class="sheet" id="clipsheet">
+      <textarea id="cliptext" placeholder="PC clipboard appears here"></textarea>
+      <div style="display:flex;gap:8px"><button id="cSend" style="flex:1">Send to PC</button><button id="cCopy" style="flex:1">Copy to phone</button><button id="cPaste" style="flex:1">Paste from phone</button></div>
+    </div>
+    <div class="bar" id="keysbar">
+      <button data-k="esc">Esc</button><button data-k="tab">Tab</button>
+      <button data-m="ctrl">Ctrl</button><button data-m="alt">Alt</button><button data-m="shift">Shift</button><button data-m="win">Win</button>
+      <button data-k="up">↑</button><button data-k="down">↓</button><button data-k="left">←</button><button data-k="right">→</button>
+      <button data-k="delete">Del</button><button data-k="home">Home</button><button data-k="end">End</button>
+      <button data-k="pageup">PgUp</button><button data-k="pagedown">PgDn</button>
+      <button data-c="ctrl,c">Copy</button><button data-c="ctrl,v">Paste</button><button data-c="ctrl,z">Undo</button><button data-c="ctrl,a">All</button>
+      <button data-c="alt,tab">Alt+Tab</button><button data-c="win,d">Desktop</button><button data-c="ctrl,shift,esc">Task Mgr</button>
+      <button data-k="f5">F5</button><button data-k="f11">F11</button>
+    </div>
+    <div class="bar">
+      <button id="bKb">⌨</button><button id="bMode">Touchpad</button><button id="bRight">Right-click</button>
+      <button id="bMon">Screen 1</button><button id="bSound">🔇</button><button id="bClip">Clipboard</button>
+      <button id="bSet">⚙</button><button id="bHide">⛶</button>
+    </div>
+  </div>
+
+  <!-- FILES -->
+  <div class="view" id="v-files"><div class="page">
+    <div class="chips" id="roots"></div>
+    <div class="dim" id="path" style="word-break:break-all;margin:6px 0"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px"><button id="fUp">⬆ Up</button><button class="primary" id="fUpload">Upload here…</button><input type="file" id="fInput" multiple hidden></div>
+    <div id="fProg" class="dim"></div>
+    <div class="list" id="flist"></div>
+  </div></div>
+
+  <!-- TASKS -->
+  <div class="view" id="v-tasks"><div class="page">
+    <div class="grid" id="stats"></div>
+    <h3>Running apps (by memory)</h3>
+    <div class="list" id="procs"></div>
+  </div></div>
+
+  <!-- POWER -->
+  <div class="view" id="v-power"><div class="page">
+    <h3>Media</h3>
+    <div class="grid"><button data-key="prev">⏮</button><button data-key="playpause">⏯</button><button data-key="next">⏭</button>
+      <button data-key="voldown">Vol −</button><button data-key="mute">Mute</button><button data-key="volup">Vol +</button></div>
+    <h3>Power</h3>
+    <div class="grid"><button data-power="lock">Lock</button><button data-power="sleep">Sleep</button><button data-power="logoff">Sign out</button>
+      <button class="bad" data-power="restart">Restart</button><button class="bad" data-power="shutdown">Shut down</button><button data-power="cancel">Cancel shutdown</button></div>
+    <h3>Phones paired with this PC</h3>
+    <div class="list" id="devs"></div>
+    <h3>This phone</h3>
+    <button class="bad" id="bOut">Forget this PC</button>
+    <p class="dim" id="ver"></p>
+  </div></div>
+
+  <div id="nav">
+    <button class="active" data-view="screen">🖥<br><small>Screen</small></button>
+    <button data-view="files">📁<br><small>Files</small></button>
+    <button data-view="tasks">📊<br><small>Tasks</small></button>
+    <button data-view="power">⏻<br><small>Power</small></button>
+  </div>
+</div>
+<textarea id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+
+<script>
+const $ = id => document.getElementById(id), $$ = s => document.querySelectorAll(s);
+const store = { get:k=>{try{return localStorage.getItem(k)}catch{return null}}, set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}, del:k=>{try{localStorage.removeItem(k)}catch{}} };
+const native = window.AODNative || null;
+let ws, pc, info = {w:1920,h:1080,monitors:1,current:1,rtc:true}, direct=false, rightNext=false, mods=new Set(), videoMode=store.get('aod_vmode')||'auto', jpegActive=false, reconnectTimer=null;
+const tok = () => store.get('aod_token');
+const api = (path, opt={}) => fetch(path, {...opt, headers:{...(opt.headers||{}), Authorization:'Bearer '+tok()}});
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = b => b>1e9?(b/1e9).toFixed(1)+' GB':b>1e6?(b/1e6).toFixed(0)+' MB':b>1e3?(b/1e3).toFixed(0)+' KB':b+' B';
+
+// ================= pairing =================
+function deviceName(){
+  if (native) return 'AOD app · ' + (native.deviceName ? native.deviceName() : 'Android');
+  const m = navigator.userAgent.match(/Android [\d.]+; ([^)]+)\)/); return m ? m[1].replace(/ Build.*/,'') : 'Browser';
+}
+async function doPair(pin){
+  $('err').textContent='';
+  try{
+    const r = await fetch('/api/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pin, name:deviceName()})});
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||'failed');
+    store.set('aod_token', j.token); history.replaceState(null,'','/'); connect();
+  }catch(e){ $('err').textContent = e.message; $('go').disabled=false; $('go').textContent='Connect'; }
+}
+$('go').onclick = () => { $('go').disabled=true; $('go').textContent='Waiting for approval on your PC…'; doPair($('pin').value); };
+const qp = new URLSearchParams(location.search).get('pin');
+if (qp && !tok()) { $('pin').value = qp; $('go').click(); }
+$('bOut').onclick = () => { if(!confirm('Forget this PC on this phone?')) return; store.del('aod_token'); native && native.forget && native.forget(); location.href='/'; };
+
+// ================= connection =================
+async function connect(){
+  if(!tok()) return;
+  $('pair').style.display='none'; $('app').style.display='flex';
+  try{
+    const r = await api('/api/sysinfo');
+    if(r.status===401){ store.del('aod_token'); location.href='/'; return; }
+    if(r.status===503){ $('status').textContent='AOD is paused on the PC'; return retry(); }
+    const si = await r.json(); if(native && native.saveHost) native.saveHost(si.host, si.mac||'');
+  }catch(e){ $('status').textContent='PC unreachable — retrying…'; return retry(); }
+  ws = new WebSocket(`wss://${location.host}/ws?token=${encodeURIComponent(tok())}`);
+  ws.onopen = () => { sendCfg(); startVideo(); };
+  ws.onmessage = onMsg;
+  ws.onclose = () => { stopRtc(); $('status').textContent='disconnected — retrying…'; retry(); };
+}
+function retry(){ clearTimeout(reconnectTimer); reconnectTimer=setTimeout(connect,2000); }
+const send = o => ws && ws.readyState===1 && ws.send(JSON.stringify(o));
+function sendCfg(){ send({t:'cfg', rtc_scale:$('sc').value/100, scale:$('sc').value/100, quality:+$('q').value, fps:+$('fps').value}); }
+['sc','q','fps'].forEach(i => $(i).onchange = sendCfg);
+
+let frames=0, t0=performance.now(), cvctx=$('cv').getContext('2d'), lastClip='';
+async function onMsg(ev){
+  if(typeof ev.data !== 'string'){
+    const bmp = await createImageBitmap(ev.data); const cv=$('cv');
+    if(cv.width!==bmp.width||cv.height!==bmp.height){cv.width=bmp.width;cv.height=bmp.height;}
+    cvctx.drawImage(bmp,0,0); bmp.close(); frames++; return;
+  }
+  const m = JSON.parse(ev.data);
+  if(m.t==='info'){ info=m; $('bMon').textContent=`Screen ${m.current}/${m.monitors}`; $('ver').textContent='AOD host v'+m.version; }
+  else if(m.t==='cur') moveCursor(m.x,m.y);
+  else if(m.t==='clip'){ lastClip=m.s; if(document.activeElement!==$('cliptext')) $('cliptext').value=m.s; }
+  else if(m.t==='answer') pc && pc.setRemoteDescription({type:'answer',sdp:m.sdp});
+  else if(m.t==='rtc_error') fallbackJpeg();
+  else if(m.t==='rtc_closed' && videoMode!=='jpeg') startVideo();
+}
+setInterval(()=>{ const now=performance.now(); const vid=$('vid');
+  if(vid.getVideoPlaybackQuality && !jpegActive){ const q=vid.getVideoPlaybackQuality(); frames=q.totalVideoFrames-(setInterval.prev||0); setInterval.prev=q.totalVideoFrames; }
+  $('status').textContent = ws&&ws.readyState===1 ? `${jpegActive?'JPEG':'WebRTC'} · ${Math.round(frames*1000/(now-t0))} fps` : $('status').textContent; frames=0; t0=now; },1000);
+
+// ================= video (WebRTC with JPEG fallback) =================
+function stopRtc(){ if(pc){ try{pc.close()}catch{} pc=null; } }
+function fallbackJpeg(){ stopRtc(); jpegActive=true; $('vid').style.display='none'; $('cv').style.display='block'; send({t:'jpeg'}); }
+async function startVideo(){
+  if(videoMode==='jpeg' || !window.RTCPeerConnection || !info.rtc) return fallbackJpeg();
+  jpegActive=false; $('vid').style.display='block'; $('cv').style.display='none';
+  stopRtc(); pc=new RTCPeerConnection({iceServers:[]});
+  const ms=new MediaStream(); $('vid').srcObject=ms;
+  pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'});
+  pc.ontrack = e => { ms.addTrack(e.track); $('vid').play().catch(()=>{}); };
+  const myPc=pc; await pc.setLocalDescription(await pc.createOffer());
+  await new Promise(res=>{ if(pc.iceGatheringState==='complete') return res(); pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&res(); setTimeout(res,1500); });
+  if(myPc!==pc) return;
+  send({t:'offer', sdp:pc.localDescription.sdp, audio:true});
+  if(videoMode==='auto') setTimeout(()=>{ if(myPc===pc && !jpegActive && $('vid').videoWidth===0) fallbackJpeg(); }, 7000);
+}
+$('bVideo').onclick = e => { videoMode = {auto:'jpeg',jpeg:'webrtc',webrtc:'auto'}[videoMode]; store.set('aod_vmode',videoMode); e.target.textContent='Video: '+videoMode; startVideo(); };
+$('bVideo').textContent='Video: '+videoMode;
+$('bSound').onclick = e => { const v=$('vid'); v.muted=!v.muted; e.target.textContent=v.muted?'🔇':'🔊'; v.play().catch(()=>{}); };
+
+// ================= toolbar =================
+const sheets=['settings','clipsheet'];
+function toggleSheet(id){ sheets.forEach(s=>{ const el=$(s); el.style.display = (s===id && el.style.display!=='flex')?'flex':'none'; }); }
+$('bSet').onclick=()=>toggleSheet('settings'); $('bClip').onclick=()=>{ toggleSheet('clipsheet'); send({t:'clip_get'}); };
+$('bMode').onclick = e => { direct=!direct; e.target.textContent=direct?'Direct':'Touchpad'; e.target.classList.toggle('on',direct); };
+$('bRight').onclick = e => { rightNext=!rightNext; e.target.classList.toggle('on',rightNext); };
+$('bMon').onclick = () => send({t:'monitor', i: info.current % info.monitors + 1});
+$('bKb').onclick = () => $('kb').focus();
+$('bHide').onclick = () => { $$('#v-screen .bar,#v-screen .sheet,#nav').forEach(e=>e.style.display='none'); $('unhide').style.display='block'; };
+$('unhide').onclick = () => { $$('#v-screen .bar,#nav').forEach(e=>e.style.display='flex'); $('unhide').style.display='none'; };
+$('bZoom').onclick = () => { zoom=1; panX=panY=0; applyZoom(); };
+$('cSend').onclick = () => send({t:'clip_set', s:$('cliptext').value});
+$('cCopy').onclick = () => navigator.clipboard.writeText($('cliptext').value).catch(()=>{});
+$('cPaste').onclick = async () => { try{ $('cliptext').value = await navigator.clipboard.readText(); }catch{ $('cliptext').focus(); } };
+$('keysbar').onclick = e => {
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.m){ mods.has(b.dataset.m)?mods.delete(b.dataset.m):mods.add(b.dataset.m); b.classList.toggle('on'); return; }
+  sendKey(b.dataset.c ? b.dataset.c.split(',') : [b.dataset.k]);
+};
+function sendKey(keys){ send({t:'key', keys:[...mods,...keys]}); mods.clear(); $$('[data-m]').forEach(x=>x.classList.remove('on')); }
+
+// ================= keyboard =================
+const kb=$('kb');
+kb.addEventListener('beforeinput', e => {
+  e.preventDefault();
+  if(e.inputType==='insertText' && e.data){ mods.size && e.data.length===1 ? sendKey([e.data.toLowerCase()]) : send({t:'text', s:e.data}); }
+  else if(e.inputType==='insertFromPaste' && e.data) send({t:'text', s:e.data});
+  else if(e.inputType==='insertLineBreak'||e.inputType==='insertParagraph') sendKey(['enter']);
+  else if(e.inputType==='deleteContentBackward') sendKey(['backspace']);
+});
+kb.addEventListener('keydown', e => {
+  const map={Enter:'enter',Backspace:'backspace',Tab:'tab',Escape:'esc',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',Delete:'delete'};
+  if(map[e.key]){ e.preventDefault(); sendKey([map[e.key]]); }
+});
+
+// ================= zoom + cursor overlay =================
+let zoom=1, panX=0, panY=0;
+function applyZoom(){
+  const s=$('stage'); panX=Math.min(0,Math.max(s.clientWidth*(1-zoom),panX)); panY=Math.min(0,Math.max(s.clientHeight*(1-zoom),panY));
+  $('media').style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;
+}
+function contentBox(){ const m=$('media'), s=Math.min(m.clientWidth/info.w, m.clientHeight/info.h); const w=info.w*s,h=info.h*s; return {s,w,h,ox:(m.clientWidth-w)/2,oy:(m.clientHeight-h)/2}; }
+function moveCursor(x,y){ const b=contentBox(), c=$('cur'); c.style.left=(b.ox+x*b.w)+'px'; c.style.top=(b.oy+y*b.h)+'px'; c.style.transform=`scale(${1/zoom})`; }
+
+// ================= touch gestures =================
+const stage=$('stage'); const speed=()=>$('sens').value/10;
+let touches={}, tapStart=0, moved=0, lastTap=0, dragging=false, maxTouches=0, scrollAcc=0, pinch=null;
+function toRemote(dx,dy){ const b=contentBox(); const f=speed()/1.5/zoom; return [dx/b.s*f, dy/b.s*f]; }
+function absPos(t){ const r=$('media').getBoundingClientRect(), b=contentBox(), k=r.width/$('media').clientWidth;
+  const x=(t.clientX-r.left)/k-b.ox, y=(t.clientY-r.top)/k-b.oy; return {x:Math.min(1,Math.max(0,x/b.w)), y:Math.min(1,Math.max(0,y/b.h))}; }
+const dist=(a,b)=>Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+stage.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches) touches[t.identifier]={x:t.clientX,y:t.clientY};
+  const n=Object.keys(touches).length;
+  if(n===1){ tapStart=performance.now(); moved=0; maxTouches=1; scrollAcc=0; pinch=null;
+    if(performance.now()-lastTap<300 && !direct) dragging='pending';
+    if(direct) send({t:'abs',...absPos(e.changedTouches[0])});
+  } else { maxTouches=Math.max(maxTouches,n);
+    if(n===2) pinch={d:dist(e.touches[0],e.touches[1]), z:zoom, active:false, cx:(e.touches[0].clientX+e.touches[1].clientX)/2, cy:(e.touches[0].clientY+e.touches[1].clientY)/2}; }
+},{passive:false});
+stage.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const n=Object.keys(touches).length;
+  if(n===2 && pinch && e.touches.length>=2){
+    const d=dist(e.touches[0],e.touches[1]), ratio=d/pinch.d;
+    const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    if(!pinch.active && Math.abs(ratio-1)>0.12) pinch.active=true;
+    if(pinch.active){ const nz=Math.min(5,Math.max(1,pinch.z*ratio)); const r=stage.getBoundingClientRect();
+      panX = (cx-r.left) - ((pinch.cx-r.left)-panX)*(nz/zoom); panY = (cy-r.top) - ((pinch.cy-r.top)-panY)*(nz/zoom);
+      zoom=nz; pinch.cx=cx; pinch.cy=cy; applyZoom(); moved+=99; return; }
+  }
+  for(const t of e.changedTouches){
+    const p=touches[t.identifier]; if(!p) continue;
+    const dx=t.clientX-p.x, dy=t.clientY-p.y; p.x=t.clientX; p.y=t.clientY; moved+=Math.abs(dx)+Math.abs(dy);
+    if(n===1){
+      if(direct) send({t:'abs',...absPos(t)});
+      else { if(dragging==='pending'&&moved>6){ send({t:'down',b:'left'}); dragging=true; }
+        const [rx,ry]=toRemote(dx,dy); send({t:'move',dx:rx,dy:ry}); }
+    } else if(n===2 && t===e.touches[0]){
+      scrollAcc+=dy; const steps=Math.trunc(scrollAcc/14); if(steps){ send({t:'scroll',dy:steps}); scrollAcc-=steps*14; }
+    }
+  }
+},{passive:false});
+stage.addEventListener('touchend', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches) delete touches[t.identifier];
+  if(Object.keys(touches).length) return;
+  const quick=performance.now()-tapStart<250 && moved<10;
+  if(dragging===true){ send({t:'up',b:'left'}); dragging=false; }
+  else if(quick){ const b=(maxTouches>=2||rightNext)?'right':'left'; send({t:'click',b});
+    if(rightNext){ rightNext=false; $('bRight').classList.remove('on'); } if(b==='left') lastTap=performance.now(); }
+  if(dragging==='pending') dragging=false; pinch=null;
+},{passive:false});
+
+// ================= tabs =================
+let tab='screen', pollTimer=null;
+$$('#nav button').forEach(b => b.onclick = () => {
+  tab=b.dataset.view; $$('#nav button').forEach(x=>x.classList.toggle('active',x===b));
+  $$('.view').forEach(v=>v.classList.toggle('active', v.id==='v-'+tab));
+  clearInterval(pollTimer);
+  if(tab==='files') filesInit(); if(tab==='tasks'){ loadTasks(); pollTimer=setInterval(loadTasks,3000); } if(tab==='power') loadDevs();
+});
+
+// ================= files =================
+let curPath='', rootsLoaded=false;
+async function filesInit(){
+  if(!rootsLoaded){ const r=await (await api('/api/roots')).json(); $('roots').innerHTML=r.map(x=>`<button data-p="${esc(x.path)}">${esc(x.name)}</button>`).join(''); rootsLoaded=true; $('roots').onclick=e=>{const b=e.target.closest('button'); b&&openDir(b.dataset.p)}; }
+  if(!curPath) openDir('');
+}
+async function openDir(p){
+  const r=await api('/api/files?path='+encodeURIComponent(p)); const j=await r.json();
+  if(!r.ok){ alert(j.error||'Cannot open'); return; }
+  curPath=j.path; $('path').textContent=j.path; $('fUp').disabled=!j.parent; $('fUp').onclick=()=>j.parent&&openDir(j.parent);
+  $('flist').innerHTML=j.items.map((it,i)=>`<div data-i="${i}"><span>${it.dir?'📁':'📄'}</span><span class="n">${esc(it.name)}</span><span class="dim">${it.dir?'':fmt(it.size)}</span></div>`).join('')||'<div class="dim">Empty folder</div>';
+  $('flist').onclick=e=>{ const row=e.target.closest('[data-i]'); if(!row) return; const it=j.items[row.dataset.i]; const full=j.path.replace(/[\\/]+$/,'')+(j.path.includes('\\')?'\\':'/')+it.name;
+    if(it.dir) openDir(full); else if(confirm('Download '+it.name+'?')) location.href='/api/download?token='+encodeURIComponent(tok())+'&path='+encodeURIComponent(full); };
+}
+$('fUpload').onclick=()=>$('fInput').click();
+$('fInput').onchange=()=>{ const files=$('fInput').files; if(!files.length) return;
+  const fd=new FormData(); for(const f of files) fd.append('file',f,f.name);
+  const x=new XMLHttpRequest(); x.open('POST','/api/upload?dir='+encodeURIComponent(curPath)); x.setRequestHeader('Authorization','Bearer '+tok());
+  x.upload.onprogress=e=>$('fProg').textContent='Uploading '+Math.round(e.loaded/e.total*100)+'%';
+  x.onload=()=>{ $('fProg').textContent=x.status===200?'Uploaded to '+curPath:'Upload failed'; $('fInput').value=''; openDir(curPath); };
+  x.onerror=()=>$('fProg').textContent='Upload failed'; x.send(fd); };
+
+// ================= tasks =================
+async function loadTasks(){
+  try{
+    const [si,pr]=await Promise.all([api('/api/sysinfo').then(r=>r.json()), api('/api/procs').then(r=>r.json())]);
+    const bar=p=>`<div class="bar2"><i style="width:${p}%"></i></div>`; const h=s=>Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m';
+    $('stats').innerHTML=`<div class="stat"><span class="dim">CPU</span><b>${si.cpu}%</b>${bar(si.cpu)}</div>
+      <div class="stat"><span class="dim">RAM</span><b>${fmt(si.ram_used)}</b>${bar(si.ram_used/si.ram_total*100)}</div>
+      <div class="stat"><span class="dim">Disk</span><b>${fmt(si.disk_used)}</b>${bar(si.disk_used/si.disk_total*100)}</div>
+      <div class="stat"><span class="dim">${si.battery?'Battery':'Uptime'}</span><b>${si.battery?si.battery.pct+'%'+(si.battery.plugged?' ⚡':''):h(si.uptime)}</b></div>`;
+    $('procs').innerHTML=pr.map(p=>`<div><span class="n">${esc(p.name)}</span><span class="dim">${p.cpu}% · ${fmt(p.mem)}</span><button class="bad" data-pid="${p.pid}" style="min-height:34px;padding:2px 10px">End</button></div>`).join('');
+  }catch{}
+}
+$('procs').onclick=async e=>{ const b=e.target.closest('[data-pid]'); if(!b) return; if(!confirm('End this process?')) return;
+  await api('/api/kill',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pid:+b.dataset.pid})}); loadTasks(); };
+
+// ================= power / media / devices =================
+$$('[data-key]').forEach(b=>b.onclick=()=>send({t:'key',keys:[b.dataset.key]}));
+$$('[data-power]').forEach(b=>b.onclick=async()=>{ const a=b.dataset.power;
+  if(['restart','shutdown','logoff','sleep'].includes(a) && !confirm(b.textContent+' the PC?')) return;
+  const r=await (await api('/api/power',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:a})})).json(); if(!r.ok) alert('Not available'); });
+async function loadDevs(){ const d=await (await api('/api/devices')).json();
+  $('devs').innerHTML=d.map(x=>`<div><span class="n">${esc(x.name)}<br><small class="dim">${esc(x.ip)} · ${new Date(x.last_seen*1000).toLocaleString()}</small></span><button class="bad" data-d="${x.id}" style="min-height:34px">Unpair</button></div>`).join('');
+  $('devs').onclick=async e=>{ const b=e.target.closest('[data-d]'); if(!b||!confirm('Unpair this phone?')) return; await api('/api/devices/'+b.dataset.d,{method:'DELETE'}); loadDevs(); }; }
+
+if(tok()) connect();
+if('serviceWorker' in navigator) {}
+</script>
+</body>
+</html>

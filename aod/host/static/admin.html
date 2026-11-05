@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AOD dashboard</title>
+<style>
+:root{--bg:#0b0d12;--panel:#151922;--line:#262c3a;--fg:#e8ecf4;--dim:#8b93a7;--accent:#4ade80;--bad:#f87171}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif;padding:24px;max-width:860px;margin:auto}
+h1{letter-spacing:.15em;margin:0 0 4px}h2{font-size:15px;color:var(--dim);font-weight:600;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.06em}
+.row{display:flex;gap:16px;flex-wrap:wrap}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.qr{text-align:center}.qr img{width:200px;height:200px;border-radius:8px;background:#fff}.qr p{margin:8px 0 0;color:var(--dim);font-size:13px;max-width:200px}
+.pin{font-size:34px;letter-spacing:.35em;font-weight:700;color:var(--accent)}
+button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}button.bad:hover{border-color:var(--bad);color:var(--bad)}
+table{width:100%;border-collapse:collapse}td{padding:10px 6px;border-top:1px solid var(--line)}.dim{color:var(--dim)}
+.tag{padding:2px 8px;border-radius:99px;font-size:12px;background:#4ade8022;color:var(--accent)}.tag.off{background:#f8717122;color:var(--bad)}
+code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
+</style></head><body>
+<h1>AOD</h1><div class="dim">Control this PC from your phone</div>
+<h2>Pair a phone</h2>
+<div class="row">
+  <div class="card qr"><img id="qa" alt="App QR"><p><b>AOD Android app</b><br>Scan inside the app, or with the phone camera.</p></div>
+  <div class="card qr"><img id="qb" alt="Browser QR"><p><b>Browser</b><br>Scan with the camera to open in Chrome.</p></div>
+  <div class="card" style="flex:1;min-width:240px">
+    <div class="dim">PIN (changes after each pairing)</div><div class="pin" id="pin">------</div>
+    <div class="dim" style="margin:6px 0 12px">expires in <span id="exp"></span> s</div>
+    <div class="dim">Address</div><code id="url"></code>
+    <p class="dim" style="font-size:13px">You'll be asked on this PC to approve every new device.</p>
+    <button id="newpin">New PIN</button>
+  </div>
+</div>
+<h2>Status</h2>
+<div class="row" style="align-items:center">
+  <span class="tag" id="st"></span>
+  <button id="pause"></button><button id="pairing"></button>
+  <span class="dim" id="meta"></span>
+</div>
+<h2>Paired devices</h2>
+<div class="card"><table id="dev"></table><div style="margin-top:12px"><button class="bad" id="all">Unpair all</button></div></div>
+<script>
+const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
+const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
+$('pause').onclick=()=>post('pause');$('pairing').onclick=()=>post('pairing');$('newpin').onclick=()=>post('new_pin');
+$('all').onclick=()=>confirm('Unpair every phone?')&&post('revoke_all');
+let lastPin='';
+async function load(){
+  const s=await (await fetch('/_admin/state')).json();
+  $('pin').textContent=s.pin;$('exp').textContent=Math.max(0,s.pin_expires);$('url').textContent=s.url;
+  if(s.pin!==lastPin){lastPin=s.pin;const n=Date.now();$('qa').src='/_admin/qr.png?kind=app&n='+n;$('qb').src='/_admin/qr.png?kind=web&n='+n;}
+  $('st').textContent=s.enabled?'Running':'Paused';$('st').className='tag'+(s.enabled?'':' off');
+  $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';
+  $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';
+  $('meta').textContent='v'+s.version+' · video: '+(s.rtc?'WebRTC H.264':'JPEG fallback');
+  $('dev').innerHTML=s.devices.length?s.devices.map(d=>`<tr><td><b>${d.name.replace(/</g,'&lt;')}</b><div class="dim">${d.ip||''}</div></td><td class="dim">last seen ${new Date(d.last_seen*1000).toLocaleString()}</td><td style="text-align:right"><button class="bad" onclick="post('revoke?id=${d.id}')">Unpair</button></td></tr>`).join(''):'<tr><td class="dim">No devices paired yet.</td></tr>';
+}
+load();setInterval(load,2000);
+</script></body></html>
