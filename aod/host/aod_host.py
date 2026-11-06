@@ -396,6 +396,12 @@ async def admin_action(request):
         state.pairing_allowed = not state.pairing_allowed
     elif a == "new_pin":
         state.rotate_pin()
+    elif a == "quit":
+        def _bye():
+            import aod_tray
+            aod_tray.stop()
+            os._exit(0)
+        LOOP.call_later(0.4, _bye)      # let this HTTP response finish first
     elif a == "update":
         updater.check_and_apply_now()
     elif a == "autoupd":

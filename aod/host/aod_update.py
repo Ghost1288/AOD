@@ -43,6 +43,22 @@ class Updater:
         self.status = "Not checked yet"
         self.applying = False
         self.auto = _load_settings().get("auto_update", True)
+        self.notify_on = _load_settings().get("notify", True)
+        self.notify = lambda title, msg: None      # set by the tray icon
+
+    def _note(self, msg: str) -> None:
+        if self.notify_on:
+            try:
+                self.notify("AOD", msg)
+            except Exception:
+                pass
+
+    def set_notify(self, on: bool) -> None:
+        self.notify_on = on
+        s = _load_settings()
+        s["notify"] = on
+        SETTINGS.parent.mkdir(exist_ok=True)
+        SETTINGS.write_text(json.dumps(s))
 
     # ---- settings
     def set_auto(self, on: bool) -> None:
@@ -58,13 +74,18 @@ class Updater:
         return urllib.request.urlopen(req, timeout=timeout)
 
     def check(self) -> bool:
+        self.status = "Checking for updates..."
+        self._note("Checking for updates...")
         try:
             with self._open("version.json") as r:
                 self.latest = json.load(r)
             self.status = (f"Update available: {self.latest['version']}" if self.available()
                            else "Up to date")
+            self._note(f"Update found: {self.latest['version']}. Installing when no phone is connected."
+                       if self.available() else f"You're up to date (v{aod_version.VERSION}).")
         except Exception as e:
             self.status = f"Couldn't check for updates ({e.__class__.__name__})"
+            self._note("Couldn't check for updates. Will try again later.")
         return self.available()
 
     def available(self) -> bool:
@@ -89,6 +110,7 @@ class Updater:
         self.applying = True
         try:
             self.status = "Downloading update..."
+            self._note(f"Updating to {self.latest['version']}... AOD will restart.")
             tmp = Path(tempfile.mkdtemp(prefix="aod_update_"))
             if FROZEN:
                 self._apply_installer(tmp)

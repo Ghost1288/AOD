@@ -33,6 +33,7 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
   <span class="tag" id="st"></span>
   <button id="pause"></button><button id="pairing"></button>
   <span class="dim" id="meta"></span>
+  <button class="bad" id="quit" style="margin-left:auto">Quit AOD</button>
 </div>
 <h2>Remote access &amp; gaming</h2>
 <div class="card dim" id="remote"></div>
@@ -45,6 +46,7 @@ const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
 const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
 $('pause').onclick=()=>post('pause');$('pairing').onclick=()=>post('pairing');$('newpin').onclick=()=>post('new_pin');
 $('updnow').onclick=()=>post('update');$('updauto').onclick=()=>post('autoupd');
+$('quit').onclick=async()=>{if(!confirm('Close AOD? Your phone will be disconnected and remote control stops until you start AOD again.'))return;clearInterval(window._t);await fetch('/_admin/quit',{method:'POST',headers:H}).catch(()=>{});document.body.innerHTML='<div style="padding:60px;text-align:center"><h1>AOD has been closed</h1><p class=dim>You can close this tab. Start AOD again from the Start menu or start_aod.bat.</p></div>';};
 $('all').onclick=()=>confirm('Unpair every phone?')&&post('revoke_all');
 let lastPin='';
 async function load(){
@@ -60,5 +62,5 @@ async function load(){
   const u=s.update;$('updtxt').textContent='v'+u.current+' · '+u.status;$('updauto').textContent='Auto-update: '+(u.auto?'on':'off');
   $('dev').innerHTML=s.devices.length?s.devices.map(d=>`<tr><td><b>${d.name.replace(/</g,'&lt;')}</b><div class="dim">${d.ip||''}</div></td><td class="dim">last seen ${new Date(d.last_seen*1000).toLocaleString()}</td><td style="text-align:right"><button class="bad" onclick="post('revoke?id=${d.id}')">Unpair</button></td></tr>`).join(''):'<tr><td class="dim">No devices paired yet.</td></tr>';
 }
-load();setInterval(load,2000);
+load();window._t=setInterval(load,2000);
 </script></body></html>

@@ -4,6 +4,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
+_icon = None
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
@@ -51,7 +52,17 @@ def _icon_image(paused: bool):
     return img
 
 
+def stop() -> None:
+    """Remove the tray icon (so no ghost icon is left behind when AOD quits)."""
+    try:
+        if _icon is not None:
+            _icon.stop()
+    except Exception:
+        pass
+
+
 def start(admin_url, state, devices, set_enabled, updater):
+    global _icon
     try:
         import pystray
     except Exception as e:
@@ -82,6 +93,9 @@ def start(admin_url, state, devices, set_enabled, updater):
     def check_updates(icon, item):
         updater.check_and_apply_now()
 
+    def toggle_notify(icon, item):
+        updater.set_notify(not updater.notify_on)
+
     def quit_(icon, item):
         icon.stop()
         os._exit(0)
@@ -94,7 +108,10 @@ def start(admin_url, state, devices, set_enabled, updater):
                          visible=sys.platform == "win32"),
         pystray.MenuItem("Update automatically", toggle_auto_update, checked=lambda i: updater.auto),
         pystray.MenuItem("Check for updates now", check_updates),
+        pystray.MenuItem("Notify when checking for updates", toggle_notify, checked=lambda i: updater.notify_on),
         pystray.MenuItem("Unpair all devices", revoke_all),
         pystray.MenuItem("Quit", quit_),
     )
-    pystray.Icon("AOD", _icon_image(False), "AOD", menu).run_detached()
+    _icon = pystray.Icon("AOD", _icon_image(False), "AOD", menu)
+    updater.notify = lambda title, msg: _icon.notify(msg, title)    # Windows toast / balloon
+    _icon.run_detached()
