@@ -36,11 +36,13 @@ if not exist ".venv\Scripts\python.exe" (
   pause & exit /b 1
 )
 rem audio streaming is optional: carry on without it if it fails
-".venv\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check -r requirements-optional.txt || echo (audio support not installed, continuing)
+for /f "usebackq tokens=*" %%p in ("requirements-optional.txt") do (
+  ".venv\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check %%p >nul 2>&1 || echo (optional %%p not installed, continuing)
+)
 
 rem ---- 3. allow the phone through the firewall (needs admin, harmless if skipped) ----
 netsh advfirewall firewall show rule name="AOD host" >nul 2>&1 || (
-  netsh advfirewall firewall add rule name="AOD host" dir=in action=allow protocol=TCP localport=8765 profile=private >nul 2>&1
+  netsh advfirewall firewall add rule name="AOD host" dir=in action=allow protocol=TCP localport=8765 profile=any remoteip=LocalSubnet,100.64.0.0/10 >nul 2>&1
 )
 
 rem ---- 4. run (exit code 75 = AOD updated itself: reinstall deps and start again) ----

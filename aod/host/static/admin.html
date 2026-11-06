@@ -19,6 +19,7 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
 <div class="row">
   <div class="card qr"><img id="qa" alt="App QR"><p><b>AOD Android app</b><br>Scan inside the app, or with the phone camera.</p></div>
   <div class="card qr"><img id="qb" alt="Browser QR"><p><b>Browser</b><br>Scan with the camera to open in Chrome.</p></div>
+  <div class="card qr" id="qrc" style="display:none"><img id="qc" alt="Remote QR"><p><b>Away from home</b><br>Browser link over Tailscale.</p></div>
   <div class="card" style="flex:1;min-width:240px">
     <div class="dim">PIN (changes after each pairing)</div><div class="pin" id="pin">------</div>
     <div class="dim" style="margin:6px 0 12px">expires in <span id="exp"></span> s</div>
@@ -33,6 +34,8 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
   <button id="pause"></button><button id="pairing"></button>
   <span class="dim" id="meta"></span>
 </div>
+<h2>Remote access &amp; gaming</h2>
+<div class="card dim" id="remote"></div>
 <h2>Updates</h2>
 <div class="row" style="align-items:center"><span id="updtxt" class="dim"></span><button id="updnow">Check / install update</button><button id="updauto"></button></div>
 <h2>Paired devices</h2>
@@ -47,7 +50,9 @@ let lastPin='';
 async function load(){
   const s=await (await fetch('/_admin/state')).json();
   $('pin').textContent=s.pin;$('exp').textContent=Math.max(0,s.pin_expires);$('url').textContent=s.url;
-  if(s.pin!==lastPin){lastPin=s.pin;const n=Date.now();$('qa').src='/_admin/qr.png?kind=app&n='+n;$('qb').src='/_admin/qr.png?kind=web&n='+n;}
+  if(s.pin!==lastPin){lastPin=s.pin;const n=Date.now();$('qa').src='/_admin/qr.png?kind=app&n='+n;$('qb').src='/_admin/qr.png?kind=web&n='+n;if(s.tailscale){$('qc').src='/_admin/qr.png?kind=remote&n='+n;}}
+  $('qrc').style.display=s.tailscale?'block':'none';
+  $('remote').innerHTML=(s.tailscale?'<span class="tag">Tailscale connected</span> your PC is reachable away from home at <code>'+s.tailscale+'</code>. The AOD app switches to it automatically when you leave Wi-Fi.':'<span class="tag off">Tailscale not found</span> To use AOD away from home, install <b>Tailscale</b> (tailscale.com/download) on this PC and your phone and sign in to the same account. Then reopen this page.')+'<br><br>Gaming mode: screen capture <b>'+(s.dx?'fast (DXGI)':'standard')+'</b> · Xbox controller emulation <b>'+(s.pad?'available':'needs ViGEmBus + vgamepad')+'</b>';
   $('st').textContent=s.enabled?'Running':'Paused';$('st').className='tag'+(s.enabled?'':' off');
   $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';
   $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';

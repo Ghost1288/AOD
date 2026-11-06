@@ -12,6 +12,12 @@ import numpy as np
 from PIL import Image
 
 try:
+    import dxcam  # optional: GPU desktop duplication, far faster than mss for games
+    DX_OK = True
+except Exception:
+    DX_OK = False
+
+try:
     from aiortc import (MediaStreamTrack, RTCPeerConnection, RTCSessionDescription,
                         RTCRtpSender)
     from av import AudioFrame, VideoFrame
@@ -28,6 +34,7 @@ class Capturer:
     def __init__(self):
         self.ex = ThreadPoolExecutor(max_workers=1)
         self.sct = None
+        self.cams, self.last, self.dx_failed = {}, {}, False
 
     def _sct(self):
         if self.sct is None:
@@ -37,6 +44,28 @@ class Capturer:
     def _grab(self, idx):
         s = self._sct()
         return s.grab(s.monitors[max(1, min(idx, len(s.monitors) - 1))])
+
+    def _np(self, idx):
+        """Latest frame as a BGRA numpy array (dxcam when available, else mss)."""
+        if DX_OK and not self.dx_failed:
+            try:
+                cam = self.cams.get(idx)
+                if cam is None:
+                    cam = self.cams[idx] = dxcam.create(output_idx=max(0, idx - 1), output_color="BGRA")
+                f = cam.grab()
+                if f is None:
+                    f = self.last.get(idx)       # screen unchanged since last frame
+                if f is not None:
+                    self.last[idx] = f
+                    return np.ascontiguousarray(f)
+            except Exception as e:
+                print("dxcam failed, using mss:", e)
+                self.dx_failed = True
+        shot = self._grab(idx)
+        return np.frombuffer(shot.bgra, np.uint8).reshape(shot.height, shot.width, 4)
+
+    async def grab_np(self, idx):
+        return await asyncio.get_running_loop().run_in_executor(self.ex, self._np, idx)
 
     def _monitors(self):
         return [dict(m) for m in self._sct().monitors[1:]]
@@ -77,9 +106,8 @@ class ScreenTrack(MediaStreamTrack):
         if wait > 0:
             await asyncio.sleep(wait)
         self.last = time.monotonic()
-        shot = await self.cap.grab(self.state["mon"])
-        w, h = shot.size
-        arr = np.frombuffer(shot.bgra, np.uint8).reshape(h, w, 4)
+        arr = await self.cap.grab_np(self.state["mon"])
+        h, w = arr.shape[:2]
         frame = VideoFrame.from_ndarray(arr, format="bgra")
         scale = min(self.state.get("rtc_scale", 1.0), self.MAX_W / w)
         ow, oh = max(2, int(w * scale) // 2 * 2), max(2, int(h * scale) // 2 * 2)
@@ -162,3 +190,13 @@ async def answer_offer(sdp: str, capturer: Capturer, state: dict, want_audio: bo
             t.setCodecPreferences(h264 + rest)
     await pc.setLocalDescription(await pc.createAnswer())
     return pc, pc.localDescription.sdp
+
+
+def set_bitrate(game: bool) -> None:
+    """H.264 target bitrates (bits/s). Game mode trades bandwidth for sharpness; LAN/Tailscale can take it."""
+    try:
+        from aiortc.codecs import h264
+        h264.MIN_BITRATE, h264.DEFAULT_BITRATE, h264.MAX_BITRATE = (
+            (3_000_000, 10_000_000, 25_000_000) if game else (1_000_000, 3_000_000, 8_000_000))
+    except Exception as e:
+        print("Could not set bitrate:", e)

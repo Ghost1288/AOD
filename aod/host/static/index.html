@@ -180,8 +180,8 @@ const send = o => ws && ws.readyState===1 && ws.send(JSON.stringify(o));
 function sendCfg(){ send({t:'cfg', rtc_scale:$('sc').value/100, scale:$('sc').value/100, quality:+$('q').value, fps:+$('fps').value}); }
 ['sc','q','fps'].forEach(i => $(i).onchange = sendCfg);
 
-let frames=0, t0=performance.now(), cvctx=$('cv').getContext('2d'), lastClip='';
-async function onMsg(ev){
+let onMsg; let frames=0, t0=performance.now(), cvctx=$('cv').getContext('2d'), lastClip='';
+onMsg = async function(ev){
   if(typeof ev.data !== 'string'){
     const bmp = await createImageBitmap(ev.data); const cv=$('cv');
     if(cv.width!==bmp.width||cv.height!==bmp.height){cv.width=bmp.width;cv.height=bmp.height;}
@@ -208,7 +208,7 @@ async function startVideo(){
   stopRtc(); pc=new RTCPeerConnection({iceServers:[]});
   const ms=new MediaStream(); $('vid').srcObject=ms;
   pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'});
-  pc.ontrack = e => { ms.addTrack(e.track); $('vid').play().catch(()=>{}); };
+  pc.ontrack = e => { ms.addTrack(e.track); $('vid').play().catch(()=>{}); try{ e.receiver.jitterBufferTarget=0; }catch{} try{ e.receiver.playoutDelayHint=0; }catch{} };
   const myPc=pc; await pc.setLocalDescription(await pc.createOffer());
   await new Promise(res=>{ if(pc.iceGatheringState==='complete') return res(); pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&res(); setTimeout(res,1500); });
   if(myPc!==pc) return;
@@ -370,7 +370,7 @@ async function loadDevs(){ const d=await (await api('/api/devices')).json();
   $('devs').onclick=async e=>{ const b=e.target.closest('[data-d]'); if(!b||!confirm('Unpair this phone?')) return; await api('/api/devices/'+b.dataset.d,{method:'DELETE'}); loadDevs(); }; }
 
 if(tok()) connect();
-if('serviceWorker' in navigator) {}
 </script>
+<script src="game.js"></script>
 </body>
 </html>

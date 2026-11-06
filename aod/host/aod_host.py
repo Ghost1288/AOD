@@ -23,6 +23,8 @@ from pynput.keyboard import Controller as Keyboard, Key
 from pynput.mouse import Controller as Mouse, Button
 
 import aod_features as feat
+import aod_gamepad
+import aod_gameinput
 import aod_rtc
 import aod_security as sec
 import aod_update
@@ -128,7 +130,8 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     sessions.add(ws)
     loop = asyncio.get_running_loop()
 
-    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0}
+    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0, "game": False}
+    gi = aod_gameinput.GameInput()
     mons = await capturer.monitors()
     tasks, pcs = {}, []
     last_clip = {"v": await loop.run_in_executor(None, feat.clip_get)}
@@ -140,7 +143,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         m = mon_geom()
         await ws.send_json({"t": "info", "monitors": len(mons), "current": st["mon"],
                             "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK,
-                            "version": APP_VERSION})
+                            "pad": aod_gamepad.importable(), "version": APP_VERSION})
 
     async def jpeg_loop():
         while not ws.closed:
@@ -152,6 +155,9 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     async def cursor_loop():
         last = None
         while not ws.closed:
+            if st["game"]:
+                await asyncio.sleep(0.25)
+                continue
             m = mon_geom()
             x, y = mouse.position
             cur = (round((x - m["left"]) / m["width"], 4), round((y - m["top"]) / m["height"], 4))
@@ -206,6 +212,29 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
                     print("WebRTC failed:", e)
                     tasks["rtc_failed"] = None
                     await ws.send_json({"t": "rtc_error", "error": str(e)})
+            elif t == "game":
+                st["game"] = bool(msg.get("on"))
+                aod_rtc.set_bitrate(st["game"])
+                if not st["game"]:
+                    gi.release_all()
+                    aod_gamepad.pad.release()
+            elif t == "g_key":
+                gi.key(str(msg.get("k", "")), bool(msg.get("d")))
+            elif t == "g_btn":
+                gi.button(str(msg.get("b", "")), bool(msg.get("d")))
+            elif t == "g_mouse":
+                gi.move(int(msg.get("dx", 0)), int(msg.get("dy", 0)))
+            elif t == "g_wheel":
+                gi.wheel(int(msg.get("dy", 0)))
+            elif t == "g_release":
+                gi.release_all()
+                aod_gamepad.pad.release()
+            elif t == "pad":
+                try:
+                    aod_gamepad.pad.apply(msg["a"], int(msg["m"]))
+                except Exception as e:
+                    print("Virtual gamepad unavailable:", e)
+                    await ws.send_json({"t": "pad_error"})
             elif t == "clip_set":
                 s = str(msg.get("s", ""))[:200_000]
                 last_clip["v"] = s
@@ -218,6 +247,8 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
                 except Exception as e:
                     print("input error:", e)
     finally:
+        gi.release_all()
+        aod_gamepad.pad.release()
         sessions.discard(ws)
         for task in tasks.values():
             if task:
@@ -324,7 +355,8 @@ async def admin_state(request):
         "url": base, "pin": pin, "pin_expires": int(sec.PIN_LIFETIME - (time.time() - state.pin_time)),
         "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
         "devices": devices.public_list(), "version": APP_VERSION,
-        "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public()})
+        "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
+        "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable()})
 
 
 def qr_png(data: str) -> bytes:
@@ -338,8 +370,13 @@ async def admin_qr(request):
     loopback_only(request)
     ip, base, pin = urls()
     kind = request.query.get("kind", "app")
-    data = (f"aod://pair?host={ip}&port={PORT}&fp={FINGERPRINT}&pin={pin}" if kind == "app"
-            else f"{base}/?pin={pin}")
+    ts = sec.tailscale_ip()
+    if kind == "app":
+        data = f"aod://pair?host={ip}&port={PORT}&fp={FINGERPRINT}&pin={pin}" + (f"&ts={ts}" if ts else "")
+    elif kind == "remote" and ts:
+        data = f"https://{ts}:{PORT}/?pin={pin}"
+    else:
+        data = f"{base}/?pin={pin}"
     return web.Response(body=qr_png(data), content_type="image/png", headers={"Cache-Control": "no-store"})
 
 

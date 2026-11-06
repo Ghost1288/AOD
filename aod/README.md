@@ -36,6 +36,23 @@ Push this folder to a GitHub repo. The workflows in `.github/workflows` build:
 
 Run them from the repo's Actions tab, then download the artifacts.
 
+## Away from home (Tailscale)
+
+Install **Tailscale** (tailscale.com/download) on the PC and the phone and sign in to the same account. AOD detects it
+automatically: the dashboard shows a third QR, and the Android app uses the PC's Tailscale address whenever the home
+Wi-Fi address can't be reached. Traffic is encrypted by Tailscale as well as by AOD's own HTTPS. Wake-on-LAN only works at home.
+
+## Gaming mode
+
+Tap **🎮 Game** on the Screen tab. It goes landscape, switches to 60 fps with a high-bitrate low-latency stream, and shows:
+- **Layouts:** Shooter (WASD stick + mouse-look + Fire/Aim/Jump...), Racing, Platformer/retro. Change in the gear menu.
+- **Bluetooth controller:** pair a controller with the phone (Android Bluetooth settings) and press a button. If the PC has the
+  ViGEmBus driver and `vgamepad`, games see a real Xbox controller; otherwise the stick/buttons are mapped to keyboard + mouse.
+- Input uses hardware scancodes and raw relative mouse movement, which most games need. Games running as administrator
+  need AOD run as administrator too.
+- Faster capture (DXGI) is used when `dxcam` is installed (the optional installs in `start_aod.bat`). Borderless-window
+  games capture best.
+
 ## Auto-updates
 
 Every push to GitHub (`.github/workflows/release.yml`) builds the Android app and the Windows installer and publishes them as a

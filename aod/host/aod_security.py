@@ -32,6 +32,20 @@ def lan_ip() -> str:
         s.close()
 
 
+def tailscale_ip():
+    """This PC's Tailscale address (100.64.0.0/10), or None if Tailscale isn't running."""
+    try:
+        import psutil
+        net = ipaddress.ip_network("100.64.0.0/10")
+        for addrs in psutil.net_if_addrs().values():
+            for a in addrs:
+                if a.family == socket.AF_INET and ipaddress.ip_address(a.address) in net:
+                    return a.address
+    except Exception:
+        pass
+    return None
+
+
 # ---------------------------------------------------------------- TLS cert
 def ensure_cert():
     """Create a long-lived self-signed cert once. Returns (cert, key, sha256 fingerprint).

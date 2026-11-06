@@ -35,14 +35,23 @@ jobs:
         working-directory: aod/host
         run: |
           pip install -r requirements.txt pyinstaller
-          pip install -r requirements-optional.txt
+      - name: Install optional extras (audio, fast capture, virtual gamepad)
+        working-directory: aod/host
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          foreach ($p in Get-Content requirements-optional.txt) { pip install $p; if ($LASTEXITCODE -ne 0) { Write-Host "optional $p not installed" } }
+          $global:LASTEXITCODE = 0
       - name: Build AOD.exe
         working-directory: aod/host
         run: |
           python make_icon.py
+          $extra = @()
+          foreach ($m in "soundcard","dxcam","vgamepad") { python -c "import $m" 2>$null; if ($LASTEXITCODE -eq 0) { $extra += "--collect-all"; $extra += $m } }
+          $global:LASTEXITCODE = 0
           pyinstaller --noconfirm --onedir --noconsole --name AOD --icon icon.ico `
             --add-data "static;static" `
-            --collect-all aiortc --collect-all av --collect-all soundcard `
+            --collect-all aiortc --collect-all av @extra `
             --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 `
             --hidden-import pystray._win32 `
             aod_host.py

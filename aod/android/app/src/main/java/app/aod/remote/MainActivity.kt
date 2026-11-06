@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -19,6 +20,8 @@ import com.google.zxing.integration.android.IntentIntegrator
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.URL
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -71,6 +74,7 @@ class MainActivity : Activity() {
         prefs.edit()
             .putString("host", h).putInt("port", u.getQueryParameter("port")?.toIntOrNull() ?: 8765)
             .putString("fp", u.getQueryParameter("fp") ?: "").putString("pin", u.getQueryParameter("pin") ?: "")
+            .putString("ts", u.getQueryParameter("ts") ?: "")
             .apply()
         return true
     }
@@ -80,7 +84,12 @@ class MainActivity : Activity() {
         if (h == null) { askForPc(); return }
         val pin = prefs.getString("pin", "") ?: ""
         prefs.edit().remove("pin").apply() // PIN is one-time
-        web.loadUrl("https://$h:$port/" + if (pin.isNotEmpty()) "?pin=$pin" else "")
+        // Home address first; if the PC isn't reachable there (you're away), use its Tailscale address.
+        val ts = prefs.getString("ts", null)?.takeIf { it.isNotBlank() }
+        thread {
+            val chosen = listOfNotNull(h, ts).firstOrNull { reachable(it, port) } ?: h
+            runOnUiThread { web.loadUrl("https://$chosen:$port/" + if (pin.isNotEmpty()) "?pin=$pin" else "") }
+        }
     }
 
     private fun askForPc() {
@@ -151,7 +160,7 @@ class MainActivity : Activity() {
                 val seen = der?.let { sha256(it) }
                 // Self-signed cert: accept only if it is exactly the one pinned from the QR code.
                 if (fp.isNotEmpty() && seen == fp) handler.proceed()
-                else if (fp.isEmpty() && error.url.contains(host ?: "~")) handler.proceed() // manual address, unpinned
+                else if (fp.isEmpty() && (error.url.contains(host ?: "~"))) handler.proceed() // manual address, unpinned
                 else { handler.cancel(); showError("Certificate does not match the paired PC.") }
             }
 
@@ -200,10 +209,17 @@ class MainActivity : Activity() {
         @JavascriptInterface fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun saveHost(name: String, mac: String) { prefs.edit().putString("pcname", name).putString("mac", mac).apply() }
         @JavascriptInterface fun wake(mac: String) = this@MainActivity.wake(mac)
+        @JavascriptInterface fun setLandscape(on: Boolean) {
+            runOnUiThread { requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+        }
         @JavascriptInterface fun forget() { prefs.edit().clear().apply(); runOnUiThread { askForPc() } }
     }
 
     // ---------------------------------------------------------------- helpers
+    private fun reachable(h: String, p: Int): Boolean = try {
+        Socket().use { it.connect(InetSocketAddress(h, p), 1500); true }
+    } catch (_: Exception) { false }
+
     private fun sha256(b: ByteArray) = MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
 
     /** Wake-on-LAN magic packet (works when the PC's network adapter has WoL enabled). */
