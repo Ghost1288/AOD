@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# Only the newest push gets built, so releases can never publish out of order.
+concurrency:
+  group: release
+  cancel-in-progress: true
 env:
   BUILD: ${{ github.run_number }}
 jobs:
