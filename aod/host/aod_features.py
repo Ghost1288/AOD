@@ -9,6 +9,8 @@ from pathlib import Path
 
 import psutil
 
+from aod_paths import USER_HOME
+
 WIN = sys.platform == "win32"
 NO_WINDOW = 0x08000000 if WIN else 0
 
@@ -21,7 +23,7 @@ def sysinfo(lan_ip: str) -> dict:
                 if a.family == psutil.AF_LINK:
                     mac = a.address.replace("-", ":")
     vm = psutil.virtual_memory()
-    disk = psutil.disk_usage(Path.home().anchor or "/")
+    disk = psutil.disk_usage(USER_HOME.anchor or "/")
     bat = psutil.sensors_battery() if hasattr(psutil, "sensors_battery") else None
     return {
         "host": socket.gethostname(), "ip": lan_ip, "mac": mac,
@@ -104,7 +106,7 @@ def clip_set(s: str) -> None:
 
 # ---- files ----
 def roots() -> list:
-    home = Path.home()
+    home = USER_HOME
     r = [{"name": n, "path": str(home / n)} for n in ("Desktop", "Documents", "Downloads", "Pictures", "Videos", "Music")
          if (home / n).exists()]
     r.insert(0, {"name": "Home", "path": str(home)})
@@ -139,3 +141,19 @@ def unique_path(d: Path, name: str) -> Path:
         p = d / f"{Path(name).stem} ({i}){Path(name).suffix}"
         i += 1
     return p
+
+
+def idle_seconds() -> float:
+    """Seconds since anyone last touched this PC's keyboard or mouse (including phone input)."""
+    if not WIN:
+        return 1e9
+    import ctypes
+    from ctypes import wintypes
+
+    class LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+    lii = LASTINPUTINFO()
+    lii.cbSize = ctypes.sizeof(LASTINPUTINFO)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+        return 1e9
+    return ((ctypes.windll.kernel32.GetTickCount() - lii.dwTime) & 0xFFFFFFFF) / 1000.0

@@ -5,7 +5,12 @@ import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.Manifest
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
+import android.os.CancellationSignal
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -45,6 +50,9 @@ class MainActivity : Activity() {
     private val host get() = prefs.getString("host", null)
     private val port get() = prefs.getInt("port", 8765)
     private val fp get() = prefs.getString("fp", "")!!.lowercase()
+    private var unlocked = false
+    private var prompting = false
+    private var pausedAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,8 +60,47 @@ class MainActivity : Activity() {
         web = WebView(this)
         setContentView(web)
         setupWebView()
+        if (prefs.getBoolean("applock", false)) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         if (!handleIntent(intent)) start()
         Updater.check(this)
+        startNotifyIfEnabled()
+    }
+
+    // ---------------------------------------------------------------- fingerprint lock
+    override fun onPause() { if (!prompting) pausedAt = System.currentTimeMillis(); super.onPause() }
+
+    override fun onResume() {
+        super.onResume()
+        if (prefs.getBoolean("applock", false) && !prompting &&
+            (!unlocked || System.currentTimeMillis() - pausedAt > 30_000)) lockNow()
+    }
+
+    private fun lockNow() {
+        unlocked = false
+        web.visibility = View.INVISIBLE
+        prompting = true
+        val b = BiometricPrompt.Builder(this).setTitle("Unlock AOD").setSubtitle("AOD can control your whole PC")
+        if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+        else b.setNegativeButton("Cancel", mainExecutor) { _, _ -> }
+        b.build().authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                prompting = false; unlocked = true; web.visibility = View.VISIBLE
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                prompting = false
+                AlertDialog.Builder(this@MainActivity).setTitle("AOD is locked").setCancelable(false)
+                    .setPositiveButton("Unlock") { _, _ -> lockNow() }
+                    .setNegativeButton("Close") { _, _ -> finish() }.show()
+            }
+        })
+    }
+
+    // ---------------------------------------------------------------- PC notifications
+    private fun startNotifyIfEnabled() {
+        if (prefs.getBoolean("notify", false) && !(prefs.getString("token", "") ?: "").isBlank()) {
+            try { startForegroundService(Intent(this, NotifyService::class.java)) } catch (_: Exception) {}
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -208,12 +255,35 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun saveHost(name: String, mac: String) { prefs.edit().putString("pcname", name).putString("mac", mac).apply() }
+        @JavascriptInterface fun saveToken(t: String) { prefs.edit().putString("token", t).apply() }
+        @JavascriptInterface fun notificationsEnabled(): Boolean = prefs.getBoolean("notify", false)
+        @JavascriptInterface fun setNotifications(on: Boolean) {
+            prefs.edit().putBoolean("notify", on).apply()
+            runOnUiThread {
+                if (on) {
+                    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5)
+                    startNotifyIfEnabled()
+                } else stopService(Intent(this@MainActivity, NotifyService::class.java))
+            }
+        }
+        @JavascriptInterface fun appLockEnabled(): Boolean = prefs.getBoolean("applock", false)
+        @JavascriptInterface fun setAppLock(on: Boolean) {
+            prefs.edit().putBoolean("applock", on).apply()
+            runOnUiThread {
+                if (on) { unlocked = true; window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
         @JavascriptInterface fun saveTs(ts: String) { prefs.edit().putString("ts", ts).apply() }
         @JavascriptInterface fun wake(mac: String) = this@MainActivity.wake(mac)
         @JavascriptInterface fun setLandscape(on: Boolean) {
             runOnUiThread { requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
         }
-        @JavascriptInterface fun forget() { prefs.edit().clear().apply(); runOnUiThread { askForPc() } }
+        @JavascriptInterface fun forget() {
+            prefs.edit().clear().apply()
+            runOnUiThread { stopService(Intent(this@MainActivity, NotifyService::class.java)); askForPc() }
+        }
     }
 
     // ---------------------------------------------------------------- helpers

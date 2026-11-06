@@ -26,8 +26,14 @@ Name: "{group}\AOD"; Filename: "{app}\AOD.exe"
 Name: "{autodesktop}\AOD"; Filename: "{app}\AOD.exe"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AOD"; ValueData: """{app}\AOD.exe"""; Flags: uninsdeletevalue; Tasks: startup
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AOD"; ValueData: """{app}\AOD.exe"" --hidden"; Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
-Filename: "{app}\AOD.exe"; Description: "Start AOD now"; Flags: nowait postinstall
+Filename: "{app}\AOD.exe"; Description: "Start AOD now"; Flags: nowait postinstall; Check: ShouldRun
+
+[Code]
+function ShouldRun: Boolean;
+begin
+  Result := ExpandConstant('{param:NORUN|0}') <> '1';
+end;
 

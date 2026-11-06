@@ -78,3 +78,11 @@ GitHub Release (with `version.json`). The repo must be **public** so the apps ca
 - `host/` Windows host (Python): `aod_host.py`, `aod_security.py`, `aod_rtc.py`, `aod_features.py`, `aod_tray.py`, `static/`
 - `android/` the Android app (Kotlin WebView wrapper)
 - `installer/aod.iss` Inno Setup script
+
+## New in this version
+- **Desktop app**: AOD opens in its own window (like Discord). Closing it hides it to the tray; "Start with Windows" launches it hidden.
+- **Service mode** (dashboard > Security & service, or install_service.bat): AOD starts at boot, before login, and can see/control the lock screen and UAC prompts.
+- **Apps tab**: your own shortcut buttons (keys, text, launch app, run command, power), an app launcher with search, and a run-command box.
+- **Fingerprint lock** (Power tab > Smart features): the phone app asks for fingerprint/PIN on open. **Auto-lock PC** locks Windows when your phone disconnects.
+- **PC notifications**: "download finished" and "process closed" alerts on your phone (turn on in Smart features). Tap the bell on a process to be told when it closes.
+- **Share to PC**: in any app choose Share > AOD to open a link on the PC, copy text to its clipboard, or send files (saved to Downloads\AOD).

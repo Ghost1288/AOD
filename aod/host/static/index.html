@@ -101,6 +101,9 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
     <div class="list" id="flist"></div>
   </div></div>
 
+  <!-- APPS -->
+  <div class="view" id="v-apps"><div class="page" id="apps-page"></div></div>
+
   <!-- TASKS -->
   <div class="view" id="v-tasks"><div class="page">
     <div class="grid" id="stats"></div>
@@ -126,6 +129,7 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
   <div id="nav">
     <button class="active" data-view="screen">🖥<br><small>Screen</small></button>
     <button data-view="files">📁<br><small>Files</small></button>
+    <button data-view="apps">🚀<br><small>Apps</small></button>
     <button data-view="tasks">📊<br><small>Tasks</small></button>
     <button data-view="power">⏻<br><small>Power</small></button>
   </div>
@@ -168,7 +172,7 @@ async function connect(){
     const r = await api('/api/sysinfo');
     if(r.status===401){ store.del('aod_token'); location.href='/'; return; }
     if(r.status===503){ $('status').textContent='AOD is paused on the PC'; return retry(); }
-    const si = await r.json(); if(native && native.saveHost) native.saveHost(si.host, si.mac||''); if(native && native.saveTs && si.ts) native.saveTs(si.ts);
+    const si = await r.json(); if(native && native.saveHost) native.saveHost(si.host, si.mac||''); if(native && native.saveTs && si.ts) native.saveTs(si.ts); if(native && native.saveToken) native.saveToken(tok());
   }catch(e){ $('status').textContent='PC unreachable — retrying…'; return retry(); }
   ws = new WebSocket(`wss://${location.host}/ws?token=${encodeURIComponent(tok())}`);
   ws.onopen = () => { sendCfg(); startVideo(); };
@@ -354,7 +358,7 @@ async function loadTasks(){
       <div class="stat"><span class="dim">RAM</span><b>${fmt(si.ram_used)}</b>${bar(si.ram_used/si.ram_total*100)}</div>
       <div class="stat"><span class="dim">Disk</span><b>${fmt(si.disk_used)}</b>${bar(si.disk_used/si.disk_total*100)}</div>
       <div class="stat"><span class="dim">${si.battery?'Battery':'Uptime'}</span><b>${si.battery?si.battery.pct+'%'+(si.battery.plugged?' ⚡':''):h(si.uptime)}</b></div>`;
-    $('procs').innerHTML=pr.map(p=>`<div><span class="n">${esc(p.name)}</span><span class="dim">${p.cpu}% · ${fmt(p.mem)}</span><button class="bad" data-pid="${p.pid}" style="min-height:34px;padding:2px 10px">End</button></div>`).join('');
+    $('procs').innerHTML=pr.map(p=>`<div><span class="n">${esc(p.name)}</span><span class="dim">${p.cpu}% · ${fmt(p.mem)}</span><button data-watch="${p.pid}" title="Notify me when this closes" style="min-height:34px;padding:2px 8px">🔔</button><button class="bad" data-pid="${p.pid}" style="min-height:34px;padding:2px 10px">End</button></div>`).join('');
   }catch{}
 }
 $('procs').onclick=async e=>{ const b=e.target.closest('[data-pid]'); if(!b) return; if(!confirm('End this process?')) return;
@@ -372,5 +376,6 @@ async function loadDevs(){ const d=await (await api('/api/devices')).json();
 if(tok()) connect();
 </script>
 <script src="game.js"></script>
+<script src="extras.js"></script>
 </body>
 </html>

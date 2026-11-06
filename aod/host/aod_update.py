@@ -18,10 +18,11 @@ import zipfile
 from pathlib import Path
 
 import aod_version
+from aod_paths import DATA_DIR
 
 REPO = os.environ.get("AOD_REPO", "Ghost1288/AOD")
 BASE_URL = f"https://github.com/{REPO}/releases/latest/download/"
-SETTINGS = Path.home() / ".aod" / "settings.json"
+SETTINGS = DATA_DIR / "settings.json"
 FROZEN = getattr(sys, "frozen", False)
 APP_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
 EXIT_RESTART = 75           # start_aod.bat restarts AOD on this exit code
@@ -90,14 +91,16 @@ class Updater:
 
     def available(self) -> bool:
         try:
-            return bool(self.latest) and int(self.latest["build"]) > aod_version.BUILD
+            key = "exe_build" if FROZEN else "build"
+            return bool(self.latest) and int(self.latest.get(key, self.latest["build"])) > aod_version.BUILD
         except Exception:
             return False
 
     def public(self) -> dict:
         return {"current": aod_version.VERSION, "latest": (self.latest or {}).get("version"),
                 "available": self.available(), "status": self.status, "auto": self.auto,
-                "mode": "installer" if FROZEN else "script"}
+                "mode": "installer" if FROZEN else "script",
+                "service": os.environ.get("AOD_SERVICE") == "1"}
 
     def _download(self, name: str, dest: Path) -> None:
         with self._open(name, timeout=60) as r, open(dest, "wb") as f:
@@ -124,6 +127,11 @@ class Updater:
         setup = tmp / "AOD-Setup.exe"
         self._download(self.latest.get("exe", "AOD-Setup.exe"), setup)
         self.status = "Installing update..."
+        if os.environ.get("AOD_SERVICE") == "1":      # running as SYSTEM: install as the real user, then let the launcher restart us
+            import aod_launcher
+            aod_launcher.run_as_user(f'"{setup}" /SILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORUN=1')
+            time.sleep(1)
+            os._exit(aod_launcher.EXIT_UPDATING)
         subprocess.Popen([str(setup), "/SILENT", "/SUPPRESSMSGBOXES", "/CLOSEAPPLICATIONS",
                           "/RESTARTAPPLICATIONS"], creationflags=DETACHED)
         time.sleep(1)

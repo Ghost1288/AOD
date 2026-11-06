@@ -10,10 +10,10 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 def _launch_command() -> str:
     if getattr(sys, "frozen", False):
-        return f'"{sys.executable}"'
+        return f'"{sys.executable}" --hidden'
     exe = Path(sys.executable)
     pyw = exe.with_name("pythonw.exe")
-    return f'"{pyw if pyw.exists() else exe}" "{Path(__file__).with_name("aod_host.py")}"'
+    return f'"{pyw if pyw.exists() else exe}" "{Path(__file__).with_name("aod_host.py")}" --hidden'
 
 
 def autostart_enabled() -> bool:
@@ -61,7 +61,7 @@ def stop() -> None:
         pass
 
 
-def start(admin_url, state, devices, set_enabled, updater):
+def start(admin_url, state, devices, set_enabled, updater, open_ui=None):
     global _icon
     try:
         import pystray
@@ -70,7 +70,10 @@ def start(admin_url, state, devices, set_enabled, updater):
         return
 
     def dashboard(icon=None, item=None):
-        webbrowser.open(admin_url)
+        if open_ui:
+            open_ui()
+        else:
+            webbrowser.open(admin_url)
 
     def toggle_pause(icon, item):
         set_enabled(not state.enabled)
@@ -96,12 +99,20 @@ def start(admin_url, state, devices, set_enabled, updater):
     def toggle_notify(icon, item):
         updater.set_notify(not updater.notify_on)
 
+    def install_service(icon, item):
+        import aod_launcher
+        aod_launcher.install()
+
+    def remove_service(icon, item):
+        import aod_launcher
+        aod_launcher.remove()
+
     def quit_(icon, item):
         icon.stop()
         os._exit(0)
 
     menu = pystray.Menu(
-        pystray.MenuItem("Open AOD dashboard (QR + PIN)", dashboard, default=True),
+        pystray.MenuItem("Open AOD", dashboard, default=True),
         pystray.MenuItem("Pause AOD (disconnect everyone)", toggle_pause, checked=lambda i: not state.enabled),
         pystray.MenuItem("Allow new devices to pair", toggle_pairing, checked=lambda i: state.pairing_allowed),
         pystray.MenuItem("Start with Windows", toggle_autostart, checked=lambda i: autostart_enabled(),
@@ -110,6 +121,10 @@ def start(admin_url, state, devices, set_enabled, updater):
         pystray.MenuItem("Check for updates now", check_updates),
         pystray.MenuItem("Notify when checking for updates", toggle_notify, checked=lambda i: updater.notify_on),
         pystray.MenuItem("Unpair all devices", revoke_all),
+        pystray.MenuItem("Run as a service (starts at boot, works on lock screen)...", install_service,
+                         visible=lambda i: sys.platform == "win32" and os.environ.get("AOD_SERVICE") != "1"),
+        pystray.MenuItem("Stop running as a service...", remove_service,
+                         visible=lambda i: sys.platform == "win32" and os.environ.get("AOD_SERVICE") == "1"),
         pystray.MenuItem("Quit", quit_),
     )
     _icon = pystray.Icon("AOD", _icon_image(False), "AOD", menu)

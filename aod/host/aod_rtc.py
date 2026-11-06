@@ -9,6 +9,8 @@ from fractions import Fraction
 
 import mss
 import numpy as np
+
+import aod_desktop
 from PIL import Image
 
 try:
@@ -41,12 +43,28 @@ class Capturer:
             self.sct = mss.mss()
         return self.sct
 
+    def _reset(self):
+        """The input desktop changed (lock screen / UAC): rebuild capture handles for the new desktop."""
+        try:
+            if self.sct:
+                self.sct.close()
+        except Exception:
+            pass
+        self.sct = None
+        self.cams.clear()
+        self.last.clear()
+        self.dx_failed = False
+
     def _grab(self, idx):
+        if aod_desktop.sync():
+            self._reset()
         s = self._sct()
         return s.grab(s.monitors[max(1, min(idx, len(s.monitors) - 1))])
 
     def _np(self, idx):
         """Latest frame as a BGRA numpy array (dxcam when available, else mss)."""
+        if aod_desktop.sync():
+            self._reset()
         if DX_OK and not self.dx_failed:
             try:
                 cam = self.cams.get(idx)
@@ -68,6 +86,8 @@ class Capturer:
         return await asyncio.get_running_loop().run_in_executor(self.ex, self._np, idx)
 
     def _monitors(self):
+        if aod_desktop.sync():
+            self._reset()
         return [dict(m) for m in self._sct().monitors[1:]]
 
     async def grab(self, idx):

@@ -15,6 +15,7 @@ env:
 jobs:
   android:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -28,6 +29,7 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,13 +53,13 @@ jobs:
         run: |
           python make_icon.py
           $extra = @()
-          foreach ($m in "soundcard","dxcam","vgamepad") { python -c "import $m" 2>$null; if ($LASTEXITCODE -eq 0) { $extra += "--collect-all"; $extra += $m } }
+          foreach ($m in "soundcard","dxcam","vgamepad","webview","clr_loader","pythonnet") { python -c "import $m" 2>$null; if ($LASTEXITCODE -eq 0) { $extra += "--collect-all"; $extra += $m } }
           $global:LASTEXITCODE = 0
           pyinstaller --noconfirm --onedir --noconsole --name AOD --icon icon.ico `
             --add-data "static;static" `
             --collect-all aiortc --collect-all av @extra `
             --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 `
-            --hidden-import pystray._win32 `
+            --hidden-import pystray._win32 --hidden-import webview.platforms.edgechromium `
             aod_host.py
       - name: Build installer
         run: |
@@ -68,16 +70,32 @@ jobs:
 
   release:
     needs: [android, windows]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with: { path: out, merge-multiple: true }
       - name: Package
         run: |
+          mkdir -p out prev
           printf 'VERSION = "2.0.%s"\nBUILD = %s\n' "$BUILD" "$BUILD" > aod/host/aod_version.py
           (cd aod/host && zip -qr ../../out/aod-host.zip . -x ".venv/*" "*/__pycache__/*" "__pycache__/*" "dist/*" "build/*")
-          printf '{"version":"2.0.%s","build":%s,"apk":"AOD.apk","exe":"AOD-Setup.exe","host_zip":"aod-host.zip"}\n' "$BUILD" "$BUILD" > out/version.json
+          # If one of the two builds failed, keep shipping the previous good file and its build number.
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern version.json --dir prev 2>/dev/null || true
+          prev() { python3 -c "import json,sys;d=json.load(open('prev/version.json'));print(d.get(sys.argv[1],d.get('build',0)))" "$1" 2>/dev/null || echo 0; }
+          APK_BUILD=$BUILD; EXE_BUILD=$BUILD
+          if [ ! -f out/AOD.apk ]; then
+            gh release download --repo "$GITHUB_REPOSITORY" --pattern AOD.apk --dir out 2>/dev/null && APK_BUILD=$(prev apk_build) || echo "no APK this build"
+          fi
+          if [ ! -f out/AOD-Setup.exe ]; then
+            gh release download --repo "$GITHUB_REPOSITORY" --pattern AOD-Setup.exe --dir out 2>/dev/null && EXE_BUILD=$(prev exe_build) || echo "no EXE this build"
+          fi
+          printf '{"version":"2.0.%s","build":%s,"apk_build":%s,"exe_build":%s,"apk":"AOD.apk","exe":"AOD-Setup.exe","host_zip":"aod-host.zip"}\n' "$BUILD" "$BUILD" "$APK_BUILD" "$EXE_BUILD" > out/version.json
           ls -la out
       - uses: softprops/action-gh-release@v2
         with:

@@ -10,8 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-DATA_DIR = Path.home() / ".aod"
-DATA_DIR.mkdir(exist_ok=True)
+from aod_paths import DATA_DIR
 CERT_FILE = DATA_DIR / "cert.pem"
 KEY_FILE = DATA_DIR / "key.pem"
 DEVICES_FILE = DATA_DIR / "devices.json"

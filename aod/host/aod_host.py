@@ -8,8 +8,11 @@ import json
 import os
 import ssl
 import sys
+import threading
 import time
 from pathlib import Path
+
+from aod_paths import DATA_DIR, SERVICE, USER_HOME
 
 from aiohttp import web, WSMsgType
 
@@ -22,11 +25,16 @@ except Exception:
 from pynput.keyboard import Controller as Keyboard, Key
 from pynput.mouse import Controller as Mouse, Button
 
+import aod_apps
+import aod_desktop
+import aod_events
 import aod_features as feat
 import aod_gamepad
 import aod_gameinput
 import aod_rtc
 import aod_security as sec
+import aod_settings
+import aod_window
 import aod_update
 import aod_version
 
@@ -43,6 +51,8 @@ state = sec.State()
 capturer = aod_rtc.Capturer()
 sessions = set()          # live websockets (for the kill switch)
 updater = aod_update.Updater(lambda: bool(sessions))
+events = aod_events.Events()
+LOOP = None
 CERT, KEY, FINGERPRINT = sec.ensure_cert()
 
 SPECIAL_KEYS = {
@@ -158,6 +168,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             if st["game"]:
                 await asyncio.sleep(0.25)
                 continue
+            aod_desktop.sync()
             m = mon_geom()
             x, y = mouse.position
             cur = (round((x - m["left"]) / m["width"], 4), round((y - m["top"]) / m["height"], 4))
@@ -186,6 +197,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         async for m in ws:
             if m.type != WSMsgType.TEXT:
                 continue
+            aod_desktop.sync()
             try:
                 msg = json.loads(m.data)
             except ValueError:
@@ -250,6 +262,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         gi.release_all()
         aod_gamepad.pad.release()
         sessions.discard(ws)
+        schedule_autolock()
         for task in tasks.values():
             if task:
                 task.cancel()
@@ -291,7 +304,7 @@ async def api_roots(request):
 async def api_files(request):
     authed(request)
     try:
-        return web.json_response(feat.listdir(request.query.get("path") or str(Path.home())))
+        return web.json_response(feat.listdir(request.query.get("path") or str(USER_HOME)))
     except OSError as e:
         return web.json_response({"error": str(e)}, status=400)
 
@@ -306,7 +319,7 @@ async def api_download(request):
 
 async def api_upload(request):
     authed(request)
-    dest = Path(request.query.get("dir") or Path.home() / "Downloads" / "AOD").expanduser()
+    dest = Path(request.query.get("dir") or USER_HOME / "Downloads" / "AOD").expanduser()
     dest.mkdir(parents=True, exist_ok=True)
     saved = []
     reader = await request.multipart()
@@ -336,6 +349,97 @@ async def api_device_revoke(request):
     return web.json_response({"ok": ok})
 
 
+async def _in_thread(fn, *a):
+    return await asyncio.get_running_loop().run_in_executor(None, fn, *a)
+
+
+async def api_shortcuts_get(request):
+    authed(request)
+    return web.json_response(aod_apps.load_shortcuts())
+
+
+async def api_shortcuts_put(request):
+    authed(request)
+    return web.json_response(aod_apps.save_shortcuts(await request.json()))
+
+
+async def api_apps(request):
+    authed(request)
+    return web.json_response(await _in_thread(aod_apps.list_apps, request.query.get("q", "")))
+
+
+async def api_launch(request):
+    authed(request)
+    ok = await _in_thread(aod_apps.launch, str((await request.json()).get("target", "")))
+    return web.json_response({"ok": ok})
+
+
+async def api_run(request):
+    authed(request)
+    return web.json_response(await _in_thread(aod_apps.run_cmd, str((await request.json()).get("cmd", ""))))
+
+
+async def api_events(request):
+    authed(request)
+    after = int(request.query.get("after", "-1"))
+    wait = min(30.0, float(request.query.get("wait", "0")))
+    evs, last = await events.wait(after, wait)
+    return web.json_response({"events": evs, "last": last})
+
+
+async def api_watch(request):
+    authed(request)
+    name = events.watch_pid(int((await request.json())["pid"]))
+    return web.json_response({"ok": bool(name), "name": name})
+
+
+def settings_payload() -> dict:
+    return {**aod_settings.load(), "service": SERVICE}
+
+
+async def api_settings_get(request):
+    authed(request)
+    return web.json_response(settings_payload())
+
+
+async def api_settings_post(request):
+    authed(request)
+    aod_settings.update(await request.json())
+    return web.json_response(settings_payload())
+
+
+async def api_share(request):
+    """Used by Android's Share menu: open a link on the PC or put text on its clipboard."""
+    authed(request)
+    data = await request.json()
+    kind, text = data.get("kind"), str(data.get("text", ""))[:200_000]
+    if kind == "open" and text.lower().startswith(("http://", "https://")):
+        ok = await _in_thread(aod_apps.launch, text)
+    elif kind == "clip":
+        await _in_thread(feat.clip_set, text)
+        ok = True
+    else:
+        ok = False
+    if ok:
+        events.push("Shared from phone", ("Opened " if kind == "open" else "Copied: ") + text[:80])
+    return web.json_response({"ok": ok})
+
+
+def schedule_autolock() -> None:
+    """Lock the PC a while after the last phone disconnects, unless someone is using the PC."""
+    s = aod_settings.load()
+    if s["autolock"] and not sessions and LOOP:
+        LOOP.call_later(int(s["autolock_secs"]), check_autolock)
+
+
+def check_autolock() -> None:
+    s = aod_settings.load()
+    if sessions or not s["autolock"]:
+        return
+    if feat.idle_seconds() >= int(s["autolock_secs"]) - 2:      # nobody has touched the PC since
+        feat.power("lock")
+
+
 # ------------------------------------------------------------------ admin page (PC only)
 def urls():
     ip = sec.lan_ip()
@@ -357,7 +461,8 @@ async def admin_state(request):
         "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
         "devices": devices.public_list(), "version": APP_VERSION,
         "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
-        "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable()})
+        "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable(),
+        "settings": settings_payload()})
 
 
 def qr_png(data: str) -> bytes:
@@ -402,6 +507,20 @@ async def admin_action(request):
             aod_tray.stop()
             os._exit(0)
         LOOP.call_later(0.4, _bye)      # let this HTTP response finish first
+    elif a == "show":
+        show_ui()
+    elif a == "setting":
+        k, v = request.query.get("k", ""), request.query.get("v", "")
+        aod_settings.update({k: (v == "1") if k in ("autolock", "notify_downloads") else v})
+    elif a == "service_install":
+        import aod_launcher
+        threading.Thread(target=aod_launcher.install, daemon=True).start()
+    elif a == "service_remove":
+        import aod_launcher
+        threading.Thread(target=aod_launcher.remove, daemon=True).start()
+    elif a == "notify":
+        body = await request.json()
+        events.push(str(body.get("title", "AOD")), str(body.get("text", "")))
     elif a == "update":
         updater.check_and_apply_now()
     elif a == "autoupd":
@@ -416,8 +535,6 @@ def set_enabled(on: bool) -> None:
         for w in list(sessions):
             asyncio.run_coroutine_threadsafe(w.close(), LOOP)
 
-
-LOOP = None
 
 
 async def on_startup(app):
@@ -438,6 +555,16 @@ def make_app() -> web.Application:
     r.add_get("/api/files", api_files)
     r.add_get("/api/download", api_download)
     r.add_post("/api/upload", api_upload)
+    r.add_get("/api/shortcuts", api_shortcuts_get)
+    r.add_put("/api/shortcuts", api_shortcuts_put)
+    r.add_get("/api/apps", api_apps)
+    r.add_post("/api/launch", api_launch)
+    r.add_post("/api/run", api_run)
+    r.add_get("/api/events", api_events)
+    r.add_post("/api/watch", api_watch)
+    r.add_get("/api/settings", api_settings_get)
+    r.add_post("/api/settings", api_settings_post)
+    r.add_post("/api/share", api_share)
     r.add_get("/api/devices", api_devices)
     r.add_delete("/api/devices/{id}", api_device_revoke)
     r.add_get("/", lambda req: web.FileResponse(STATIC / "index.html"))
@@ -489,6 +616,12 @@ def fatal(msg: str) -> None:
 async def serve() -> None:
     global LOOP
     LOOP = asyncio.get_running_loop()
+    events.loop = LOOP
+
+    def broadcast(ev):
+        for w in list(sessions):
+            asyncio.ensure_future(w.send_json({"t": "notify", **ev}))
+    events.listeners.append(broadcast)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(CERT, KEY)
     r1 = web.AppRunner(make_app())
@@ -497,25 +630,50 @@ async def serve() -> None:
     r2 = web.AppRunner(make_admin_app())
     await r2.setup()
     await start_site(web.TCPSite(r2, "127.0.0.1", ADMIN_PORT))
-    print("AOD is running. Leave this window open (or use the tray icon).")
-    if os.environ.get("AOD_NO_BROWSER") != "1":
-        import webbrowser
-        webbrowser.open(ADMIN_URL)   # only now: the server is listening
+    print("AOD is running.")
     await asyncio.Event().wait()
 
 
+def server_thread() -> None:
+    try:
+        asyncio.run(serve())
+    except OSError as e:
+        fatal(f"AOD couldn't start: port {PORT} or {ADMIN_PORT} is in use by another program ({e}).\n\n"
+              "If AOD is already running, close it from its tray icon (or end AOD.exe / python in Task Manager) and try again.")
+        os._exit(1)
+
+
+def show_ui() -> None:
+    aod_window.show(ADMIN_URL)
+
+
+def ask_running_instance_to_show() -> None:
+    import urllib.request
+    try:
+        req = urllib.request.Request(ADMIN_URL + "_admin/show", method="POST", headers={"X-AOD-Admin": "1"})
+        urllib.request.urlopen(req, timeout=2).read()
+    except Exception:
+        pass
+
+
 def main() -> None:
-    import webbrowser
-    import aod_tray
     import time as _t
+    argv = sys.argv[1:]
+    if "--launcher" in argv or "--install-service" in argv or "--remove-service" in argv:
+        import aod_launcher
+        {"--launcher": aod_launcher.run, "--install-service": aod_launcher.install,
+         "--remove-service": aod_launcher.remove}[next(a for a in argv if a.startswith("--") and a != "--hidden")]()
+        return
+    if sys.stdout is None or SERVICE:      # windowed exe / service: keep a log file instead of a console
+        sys.stdout = sys.stderr = open(DATA_DIR / "aod.log", "a", buffering=1, encoding="utf-8")
+    import aod_tray
     _t.sleep(float(os.environ.get("AOD_START_DELAY", "0")))   # after a self-update restart
     if already_running():
-        print("AOD is already running on this PC. Opening its dashboard instead.")
-        webbrowser.open(ADMIN_URL)
+        print("AOD is already running on this PC. Showing its window.")
+        ask_running_instance_to_show()
         return
     ip, base, pin = urls()
     print("\n=== AOD host ===")
-    print(f"Dashboard (this PC):  {ADMIN_URL}   <- opens automatically")
     print(f"Phone (same Wi-Fi):   {base}")
     print(f"Pairing PIN:          {pin}\n")
     try:
@@ -525,14 +683,23 @@ def main() -> None:
         qr.print_ascii(invert=True)
     except Exception:
         pass
-    aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater)
+    threading.Thread(target=server_thread, daemon=True).start()
+    aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater, open_ui=show_ui)
     updater.start()
-    try:
-        asyncio.run(serve())
-    except OSError as e:
-        fatal(f"AOD couldn't start: port {PORT} or {ADMIN_PORT} is in use by another program ({e}).\n\n"
-              "If AOD is already running, close it from its tray icon (or end AOD.exe / python in Task Manager) and try again.")
-        sys.exit(1)
+    events.start_download_watcher()
+    hidden = "--hidden" in argv
+    headless = SERVICE or os.environ.get("AOD_NO_BROWSER") == "1"
+    for _ in range(50):                    # wait until the dashboard server answers
+        if already_running():
+            break
+        _t.sleep(0.2)
+    if not headless and aod_window.available() and aod_window.run(ADMIN_URL, hidden=hidden):
+        return
+    if not headless and not hidden:        # no window support: use the browser
+        import webbrowser
+        webbrowser.open(ADMIN_URL)
+    while True:
+        _t.sleep(3600)
 
 
 if __name__ == "__main__":

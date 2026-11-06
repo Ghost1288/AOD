@@ -35,7 +35,7 @@ object Updater {
     fun check(a: Activity) = thread {
         try {
             val info = JSONObject(open("version.json").inputStream.bufferedReader().readText())
-            val build = info.getInt("build")
+            val build = info.optInt("apk_build", info.getInt("build"))
             val current = a.packageManager.getPackageInfo(a.packageName, 0).longVersionCode
             if (build > current) a.runOnUiThread { offer(a, info) }
         } catch (_: Exception) { /* offline or no release yet: stay quiet */ }

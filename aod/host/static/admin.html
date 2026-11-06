@@ -37,6 +37,12 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
 </div>
 <h2>Remote access &amp; gaming</h2>
 <div class="card dim" id="remote"></div>
+<h2>Security &amp; service</h2>
+<div class="card">
+  <div class="row" style="align-items:center;gap:10px"><button id="alock"></button><span class="dim">Locks this PC about a minute after your phone disconnects (only if nobody is using the PC).</span></div>
+  <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="adl"></button><span class="dim">Sends "Download finished" notifications to your phone.</span></div>
+  <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="svc"></button><span class="dim" id="svctxt"></span></div>
+</div>
 <h2>Updates</h2>
 <div class="row" style="align-items:center"><span id="updtxt" class="dim"></span><button id="updnow">Check / install update</button><button id="updauto"></button></div>
 <h2>Paired devices</h2>
@@ -45,6 +51,8 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
 const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
 const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
 $('pause').onclick=()=>post('pause');$('pairing').onclick=()=>post('pairing');$('newpin').onclick=()=>post('new_pin');
+$('alock').onclick=()=>post('setting?k=autolock&v='+(window._s.autolock?0:1));$('adl').onclick=()=>post('setting?k=notify_downloads&v='+(window._s.notify_downloads?0:1));
+$('svc').onclick=()=>{if(window._s.service){if(confirm('Stop running as a service? AOD will no longer start at boot.'))post('service_remove')}else if(confirm('Run AOD as a Windows service? It starts at boot, works on the lock screen and admin prompts. Windows will ask for permission.'))post('service_install')};
 $('updnow').onclick=()=>post('update');$('updauto').onclick=()=>post('autoupd');
 $('quit').onclick=async()=>{if(!confirm('Close AOD? Your phone will be disconnected and remote control stops until you start AOD again.'))return;clearInterval(window._t);await fetch('/_admin/quit',{method:'POST',headers:H}).catch(()=>{});document.body.innerHTML='<div style="padding:60px;text-align:center"><h1>AOD has been closed</h1><p class=dim>You can close this tab. Start AOD again from the Start menu or start_aod.bat.</p></div>';};
 $('all').onclick=()=>confirm('Unpair every phone?')&&post('revoke_all');
@@ -59,6 +67,8 @@ async function load(){
   $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';
   $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';
   $('meta').textContent='v'+s.version+' · video: '+(s.rtc?'WebRTC H.264':'JPEG fallback');
+  window._s=s.settings;$('alock').textContent='Lock PC when phone disconnects: '+(s.settings.autolock?'on':'off');$('adl').textContent='Download alerts: '+(s.settings.notify_downloads?'on':'off');
+  $('svc').textContent=s.settings.service?'Stop running as a service':'Run as a service (boot + lock screen)';$('svctxt').textContent=s.settings.service?'Service mode is ON: AOD starts at boot and can control the sign-in screen and admin prompts.':'Not a service: AOD starts when you sign in and cannot control the lock screen.';
   const u=s.update;$('updtxt').textContent='v'+u.current+' · '+u.status;$('updauto').textContent='Auto-update: '+(u.auto?'on':'off');
   $('dev').innerHTML=s.devices.length?s.devices.map(d=>`<tr><td><b>${d.name.replace(/</g,'&lt;')}</b><div class="dim">${d.ip||''}</div></td><td class="dim">last seen ${new Date(d.last_seen*1000).toLocaleString()}</td><td style="text-align:right"><button class="bad" onclick="post('revoke?id=${d.id}')">Unpair</button></td></tr>`).join(''):'<tr><td class="dim">No devices paired yet.</td></tr>';
 }
