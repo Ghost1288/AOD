@@ -43,13 +43,13 @@ def set_autostart(on: bool) -> None:
 
 
 def _icon_image(paused: bool):
-    from PIL import Image, ImageDraw
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    color = (139, 147, 167, 255) if paused else (74, 222, 128, 255)
-    d.ellipse((6, 6, 58, 58), outline=color, width=8)
-    d.ellipse((24, 24, 40, 40), fill=color)
-    return img
+    from PIL import Image
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+    try:
+        img = Image.open(base / "static" / "logo.png").convert("RGBA").resize((64, 64))
+    except Exception:
+        img = Image.new("RGBA", (64, 64), (124, 58, 237, 255))
+    return img.convert("LA").convert("RGBA") if paused else img
 
 
 def stop() -> None:
