@@ -262,6 +262,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
 async def api_sysinfo(request):
     authed(request)
     info = await asyncio.get_running_loop().run_in_executor(None, feat.sysinfo, sec.lan_ip())
+    info["ts"] = sec.tailscale_ip()
     return web.json_response(info)
 
 

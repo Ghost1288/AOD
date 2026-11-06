@@ -208,6 +208,7 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun saveHost(name: String, mac: String) { prefs.edit().putString("pcname", name).putString("mac", mac).apply() }
+        @JavascriptInterface fun saveTs(ts: String) { prefs.edit().putString("ts", ts).apply() }
         @JavascriptInterface fun wake(mac: String) = this@MainActivity.wake(mac)
         @JavascriptInterface fun setLandscape(on: Boolean) {
             runOnUiThread { requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }

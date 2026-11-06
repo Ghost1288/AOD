@@ -168,7 +168,7 @@ async function connect(){
     const r = await api('/api/sysinfo');
     if(r.status===401){ store.del('aod_token'); location.href='/'; return; }
     if(r.status===503){ $('status').textContent='AOD is paused on the PC'; return retry(); }
-    const si = await r.json(); if(native && native.saveHost) native.saveHost(si.host, si.mac||'');
+    const si = await r.json(); if(native && native.saveHost) native.saveHost(si.host, si.mac||''); if(native && native.saveTs && si.ts) native.saveTs(si.ts);
   }catch(e){ $('status').textContent='PC unreachable — retrying…'; return retry(); }
   ws = new WebSocket(`wss://${location.host}/ws?token=${encodeURIComponent(tok())}`);
   ws.onopen = () => { sendCfg(); startVideo(); };
