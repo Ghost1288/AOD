@@ -33,12 +33,15 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
   <button id="pause"></button><button id="pairing"></button>
   <span class="dim" id="meta"></span>
 </div>
+<h2>Updates</h2>
+<div class="row" style="align-items:center"><span id="updtxt" class="dim"></span><button id="updnow">Check / install update</button><button id="updauto"></button></div>
 <h2>Paired devices</h2>
 <div class="card"><table id="dev"></table><div style="margin-top:12px"><button class="bad" id="all">Unpair all</button></div></div>
 <script>
 const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
 const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
 $('pause').onclick=()=>post('pause');$('pairing').onclick=()=>post('pairing');$('newpin').onclick=()=>post('new_pin');
+$('updnow').onclick=()=>post('update');$('updauto').onclick=()=>post('autoupd');
 $('all').onclick=()=>confirm('Unpair every phone?')&&post('revoke_all');
 let lastPin='';
 async function load(){
@@ -49,6 +52,7 @@ async function load(){
   $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';
   $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';
   $('meta').textContent='v'+s.version+' · video: '+(s.rtc?'WebRTC H.264':'JPEG fallback');
+  const u=s.update;$('updtxt').textContent='v'+u.current+' · '+u.status;$('updauto').textContent='Auto-update: '+(u.auto?'on':'off');
   $('dev').innerHTML=s.devices.length?s.devices.map(d=>`<tr><td><b>${d.name.replace(/</g,'&lt;')}</b><div class="dim">${d.ip||''}</div></td><td class="dim">last seen ${new Date(d.last_seen*1000).toLocaleString()}</td><td style="text-align:right"><button class="bad" onclick="post('revoke?id=${d.id}')">Unpair</button></td></tr>`).join(''):'<tr><td class="dim">No devices paired yet.</td></tr>';
 }
 load();setInterval(load,2000);

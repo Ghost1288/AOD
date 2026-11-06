@@ -1,0 +1,78 @@
+name: Build and release
+# Every push builds the Android app and the Windows installer and publishes them as a GitHub Release.
+# The apps check that release and update themselves.
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  BUILD: ${{ github.run_number }}
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.7" }
+      - run: gradle -p aod/android assembleRelease --no-daemon -PbuildNumber=${{ github.run_number }}
+      - run: cp aod/android/app/build/outputs/apk/release/app-release.apk AOD.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: apk, path: AOD.apk }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Stamp version
+        shell: bash
+        run: printf 'VERSION = "2.0.%s"\nBUILD = %s\n' "$BUILD" "$BUILD" > aod/host/aod_version.py
+      - name: Install dependencies
+        working-directory: aod/host
+        run: |
+          pip install -r requirements.txt pyinstaller
+          pip install -r requirements-optional.txt
+      - name: Build AOD.exe
+        working-directory: aod/host
+        run: |
+          python make_icon.py
+          pyinstaller --noconfirm --onedir --noconsole --name AOD --icon icon.ico `
+            --add-data "static;static" `
+            --collect-all aiortc --collect-all av --collect-all soundcard `
+            --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 `
+            --hidden-import pystray._win32 `
+            aod_host.py
+      - name: Build installer
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" aod\installer\aod.iss
+      - uses: actions/upload-artifact@v4
+        with: { name: installer, path: aod/installer/Output/AOD-Setup.exe }
+
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Package
+        run: |
+          printf 'VERSION = "2.0.%s"\nBUILD = %s\n' "$BUILD" "$BUILD" > aod/host/aod_version.py
+          (cd aod/host && zip -qr ../../out/aod-host.zip . -x ".venv/*" "*/__pycache__/*" "__pycache__/*" "dist/*" "build/*")
+          printf '{"version":"2.0.%s","build":%s,"apk":"AOD.apk","exe":"AOD-Setup.exe","host_zip":"aod-host.zip"}\n' "$BUILD" "$BUILD" > out/version.json
+          ls -la out
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: AOD 2.0.${{ github.run_number }}
+          make_latest: true
+          files: |
+            out/AOD.apk
+            out/AOD-Setup.exe
+            out/aod-host.zip
+            out/version.json

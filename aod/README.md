@@ -36,6 +36,19 @@ Push this folder to a GitHub repo. The workflows in `.github/workflows` build:
 
 Run them from the repo's Actions tab, then download the artifacts.
 
+## Auto-updates
+
+Every push to GitHub (`.github/workflows/release.yml`) builds the Android app and the Windows installer and publishes them as a
+GitHub Release (with `version.json`). The repo must be **public** so the apps can read releases without logging in.
+
+- **Windows host:** checks at startup and every 6 hours, and only installs when no phone is connected. Script copy
+  (`start_aod.bat`) overwrites its own files and restarts; installed copy runs the new installer silently.
+  Tray menu: "Update automatically" and "Check for updates now". The dashboard shows version and status.
+- **Android app:** checks each time you open it, downloads the new APK and hands it to Android's installer (you tap Install).
+  The first time it asks for "install unknown apps" permission. The web screens update automatically with the host.
+- The Android key is fixed (`android/app/aod.jks`) so updates install over the old version. Uninstall any older
+  AOD APK once (it was signed with a different key).
+
 ## Known limits
 
 - Can't control the lock screen or UAC prompts (needs a Windows service; planned).

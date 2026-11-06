@@ -25,19 +25,22 @@ from pynput.mouse import Controller as Mouse, Button
 import aod_features as feat
 import aod_rtc
 import aod_security as sec
+import aod_update
+import aod_version
 
 PORT = int(os.environ.get("AOD_PORT", "8765"))
 ADMIN_PORT = PORT + 1
 ADMIN_URL = f"http://127.0.0.1:{ADMIN_PORT}/"
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 STATIC = BASE / "static"
-APP_VERSION = "2.0"
+APP_VERSION = aod_version.VERSION
 
 mouse, keyboard = Mouse(), Keyboard()
 devices = sec.Devices()
 state = sec.State()
 capturer = aod_rtc.Capturer()
 sessions = set()          # live websockets (for the kill switch)
+updater = aod_update.Updater(lambda: bool(sessions))
 CERT, KEY, FINGERPRINT = sec.ensure_cert()
 
 SPECIAL_KEYS = {
@@ -321,7 +324,7 @@ async def admin_state(request):
         "url": base, "pin": pin, "pin_expires": int(sec.PIN_LIFETIME - (time.time() - state.pin_time)),
         "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
         "devices": devices.public_list(), "version": APP_VERSION,
-        "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT})
+        "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public()})
 
 
 def qr_png(data: str) -> bytes:
@@ -355,6 +358,10 @@ async def admin_action(request):
         state.pairing_allowed = not state.pairing_allowed
     elif a == "new_pin":
         state.rotate_pin()
+    elif a == "update":
+        updater.check_and_apply_now()
+    elif a == "autoupd":
+        updater.set_auto(not updater.auto)
     return web.json_response({"ok": True})
 
 
@@ -426,6 +433,8 @@ async def serve() -> None:
 def main() -> None:
     import webbrowser
     import aod_tray
+    import time as _t
+    _t.sleep(float(os.environ.get("AOD_START_DELAY", "0")))   # after a self-update restart
     ip, base, pin = urls()
     print("\n=== AOD host ===")
     print(f"Dashboard (this PC):  {ADMIN_URL}   <- opens automatically")
@@ -438,7 +447,8 @@ def main() -> None:
         qr.print_ascii(invert=True)
     except Exception:
         pass
-    aod_tray.start(ADMIN_URL, state, devices, set_enabled)
+    aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater)
+    updater.start()
     asyncio.run(serve())
 
 

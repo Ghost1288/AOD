@@ -30,6 +30,7 @@ if not exist ".venv\Scripts\python.exe" (
   echo Setting up AOD environment ...
   %PY% -m venv .venv || (echo Failed to create environment & pause & exit /b 1)
 )
+:deps
 ".venv\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check -r requirements.txt || (
   echo Failed to install dependencies. Check your internet connection.
   pause & exit /b 1
@@ -42,6 +43,8 @@ netsh advfirewall firewall show rule name="AOD host" >nul 2>&1 || (
   netsh advfirewall firewall add rule name="AOD host" dir=in action=allow protocol=TCP localport=8765 profile=private >nul 2>&1
 )
 
-rem ---- 4. run ----
+rem ---- 4. run (exit code 75 = AOD updated itself: reinstall deps and start again) ----
+set AOD_LOOP=1
 ".venv\Scripts\python.exe" aod_host.py
+if %errorlevel%==75 goto deps
 pause

@@ -50,6 +50,7 @@ class MainActivity : Activity() {
         setContentView(web)
         setupWebView()
         if (!handleIntent(intent)) start()
+        Updater.check(this)
     }
 
     override fun onNewIntent(intent: Intent) {

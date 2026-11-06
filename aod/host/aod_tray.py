@@ -51,7 +51,7 @@ def _icon_image(paused: bool):
     return img
 
 
-def start(admin_url, state, devices, set_enabled):
+def start(admin_url, state, devices, set_enabled, updater):
     try:
         import pystray
     except Exception as e:
@@ -76,6 +76,12 @@ def start(admin_url, state, devices, set_enabled):
         set_enabled(False)
         set_enabled(True)
 
+    def toggle_auto_update(icon, item):
+        updater.set_auto(not updater.auto)
+
+    def check_updates(icon, item):
+        updater.check_and_apply_now()
+
     def quit_(icon, item):
         icon.stop()
         os._exit(0)
@@ -86,6 +92,8 @@ def start(admin_url, state, devices, set_enabled):
         pystray.MenuItem("Allow new devices to pair", toggle_pairing, checked=lambda i: state.pairing_allowed),
         pystray.MenuItem("Start with Windows", toggle_autostart, checked=lambda i: autostart_enabled(),
                          visible=sys.platform == "win32"),
+        pystray.MenuItem("Update automatically", toggle_auto_update, checked=lambda i: updater.auto),
+        pystray.MenuItem("Check for updates now", check_updates),
         pystray.MenuItem("Unpair all devices", revoke_all),
         pystray.MenuItem("Quit", quit_),
     )

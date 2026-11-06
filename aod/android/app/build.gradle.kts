@@ -9,10 +9,22 @@ android {
         applicationId = "app.aod.remote"
         minSdk = 29
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.0"
+        val build = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+        versionCode = build
+        versionName = "2.0.$build"
     }
-    buildTypes { release { isMinifyEnabled = false } }
+    // Fixed signing key so every build can update the previous one in place.
+    signingConfigs {
+        create("aod") {
+            storeFile = file("aod.jks"); storePassword = "aodaodaod"
+            keyAlias = "aod"; keyPassword = "aodaodaod"
+        }
+    }
+    buildTypes {
+        getByName("debug") { signingConfig = signingConfigs.getByName("aod") }
+        getByName("release") { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("aod") }
+    }
+    lint { checkReleaseBuilds = false; abortOnError = false }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }

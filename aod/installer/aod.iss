@@ -9,7 +9,9 @@ OutputBaseFilename=AOD-Setup
 OutputDir=Output
 Compression=lzma2
 SolidCompression=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
+CloseApplications=yes
+RestartApplications=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\AOD.exe
 
@@ -27,8 +29,5 @@ Name: "{autodesktop}\AOD"; Filename: "{app}\AOD.exe"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AOD"; ValueData: """{app}\AOD.exe"""; Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AOD host"" dir=in action=allow program=""{app}\AOD.exe"" enable=yes profile=private"; Flags: runhidden
-Filename: "{app}\AOD.exe"; Description: "Start AOD now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AOD.exe"; Description: "Start AOD now"; Flags: nowait postinstall
 
-[UninstallRun]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AOD host"""; Flags: runhidden
