@@ -1,4 +1,6 @@
 """The AOD desktop window (WebView2 via pywebview), like Discord: closing it hides to the tray."""
+import subprocess
+import sys
 import webbrowser
 
 _window = None
@@ -9,7 +11,17 @@ def available() -> bool:
     try:
         import webview  # noqa: F401
         return True
-    except Exception:
+    except Exception as e:
+        print("pywebview missing:", e)
+    if getattr(sys, "frozen", False):
+        return False
+    try:        # script install (start_aod.bat): fetch the window library once, then continue
+        subprocess.run([sys.executable, "-m", "pip", "install", "pywebview"], timeout=240,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        import webview  # noqa: F401
+        return True
+    except Exception as e:
+        print("Could not install pywebview:", e)
         return False
 
 
