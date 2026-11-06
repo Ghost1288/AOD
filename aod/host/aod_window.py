@@ -53,6 +53,28 @@ def run(url: str, hidden: bool = False) -> bool:
         return False
 
 
+def _app_window(url: str) -> bool:
+    """No window library? Open Edge/Chrome in "app mode": a chromeless window of its own (no tabs or address bar)."""
+    import os
+    import shutil
+    from aod_paths import DATA_DIR
+    cands = [shutil.which("msedge"), shutil.which("chrome")]
+    for var in ("ProgramFiles(x86)", "ProgramFiles", "LocalAppData"):
+        base = os.environ.get(var)
+        if base:
+            cands += [os.path.join(base, "Microsoft", "Edge", "Application", "msedge.exe"),
+                      os.path.join(base, "Google", "Chrome", "Application", "chrome.exe")]
+    for exe in cands:
+        if exe and os.path.exists(exe):
+            try:
+                subprocess.Popen([exe, f"--app={url}", "--window-size=1020,800", "--no-first-run",
+                                  "--no-default-browser-check", f"--user-data-dir={DATA_DIR / 'appwindow'}"])
+                return True
+            except Exception as e:
+                print("App window failed:", e)
+    return False
+
+
 def show(url: str = "") -> None:
     if _ok and _window is not None:
         try:
@@ -61,5 +83,5 @@ def show(url: str = "") -> None:
             return
         except Exception:
             pass
-    if url:
+    if url and not _app_window(url):
         webbrowser.open(url)

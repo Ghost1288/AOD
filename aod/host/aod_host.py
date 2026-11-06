@@ -739,8 +739,7 @@ def main() -> None:
     if not headless and aod_window.available() and aod_window.run(ADMIN_URL, hidden=hidden):
         return
     if not headless and not hidden:        # no window support: use the browser
-        import webbrowser
-        webbrowser.open(ADMIN_URL)
+        aod_window.show(ADMIN_URL)
     while True:
         _t.sleep(3600)
 
