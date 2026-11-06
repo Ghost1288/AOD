@@ -21,7 +21,30 @@ MAX_TRIES = 5               # wrong PINs per IP before lockout
 LOCKOUT = 300               # seconds
 
 
+_VIRTUAL = ("tailscale", "vpn", "proton", "wireguard", "wg", "tun", "tap", "wintun", "mullvad", "nord", "virtual",
+            "vethernet", "vmware", "vbox", "docker", "wsl", "hyper-v", "loopback", "bluetooth", "zerotier")
+
+
 def lan_ip() -> str:
+    """The PC's real home-network address. Skips VPN / virtual adapters (a VPN can hijack the default route)."""
+    try:
+        import psutil
+        stats = psutil.net_if_stats()
+        cands = []
+        for name, addrs in psutil.net_if_addrs().items():
+            if any(v in name.lower() for v in _VIRTUAL) or (name in stats and not stats[name].isup):
+                continue
+            for a in addrs:
+                if a.family != socket.AF_INET:
+                    continue
+                ip = ipaddress.ip_address(a.address)
+                if ip.is_private and not ip.is_link_local and not ip.is_loopback \
+                        and ip not in ipaddress.ip_network("100.64.0.0/10"):
+                    cands.append(a.address)
+        if cands:
+            return sorted(cands, key=lambda x: (not x.startswith("192.168."), x))[0]
+    except Exception:
+        pass
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("10.255.255.255", 1))
