@@ -46,7 +46,11 @@ jobs:
         continue-on-error: true
         timeout-minutes: 6
         run: |
-          foreach ($p in Get-Content requirements-optional.txt) { pip install --only-binary=:all: $p; if ($LASTEXITCODE -ne 0) { Write-Host "optional $p not installed" } }
+          foreach ($p in Get-Content requirements-optional.txt) {
+            $job = Start-Job { param($p) pip install --prefer-binary $p 2>&1 } -ArgumentList $p
+            if (Wait-Job $job -Timeout 150) { Receive-Job $job | Select-Object -Last 3 | Write-Host } else { Stop-Job $job; Write-Host "optional $p timed out" }
+          }
+          pip show pywebview | Select-String "Version"
           $global:LASTEXITCODE = 0
       - name: Build AOD.exe
         working-directory: aod/host

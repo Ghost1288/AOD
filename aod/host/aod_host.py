@@ -459,7 +459,7 @@ async def admin_state(request):
     return web.json_response({
         "url": base, "pin": pin, "pin_expires": int(sec.PIN_LIFETIME - (time.time() - state.pin_time)),
         "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
-        "devices": devices.public_list(), "version": APP_VERSION,
+        "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error,
         "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
         "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable(),
         "settings": settings_payload()})

@@ -35,6 +35,7 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
   <span class="dim" id="meta"></span>
   <button class="bad" id="quit" style="margin-left:auto">Quit AOD</button>
 </div>
+<div class="dim" id="wnote" style="margin-top:8px;color:var(--bad)"></div>
 <h2>Remote access &amp; gaming</h2>
 <div class="card dim" id="remote"></div>
 <h2>Security &amp; service</h2>
@@ -63,6 +64,7 @@ async function load(){
   if(s.pin!==lastPin){lastPin=s.pin;const n=Date.now();$('qa').src='/_admin/qr.png?kind=app&n='+n;$('qb').src='/_admin/qr.png?kind=web&n='+n;if(s.tailscale){$('qc').src='/_admin/qr.png?kind=remote&n='+n;}}
   $('qrc').style.display=s.tailscale?'block':'none';
   $('remote').innerHTML=(s.tailscale?'<span class="tag">Tailscale connected</span> your PC is reachable away from home at <code>'+s.tailscale+'</code>. The AOD app switches to it automatically when you leave Wi-Fi.':'<span class="tag off">Tailscale not found</span> To use AOD away from home, install <b>Tailscale</b> (tailscale.com/download) on this PC and your phone and sign in to the same account. Then reopen this page.')+'<br><br>Gaming mode: screen capture <b>'+(s.dx?'fast (DXGI)':'standard')+'</b> · Xbox controller emulation <b>'+(s.pad?'available':'needs ViGEmBus + vgamepad')+'</b>';
+  $('wnote').textContent=s.window_error?'Desktop window unavailable: '+s.window_error:'';
   $('st').textContent=s.enabled?'Running':'Paused';$('st').className='tag'+(s.enabled?'':' off');
   $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';
   $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';

@@ -1,4 +1,4 @@
 soundcard
 dxcam
 vgamepad
-pywebview
+pywebview>=5.3

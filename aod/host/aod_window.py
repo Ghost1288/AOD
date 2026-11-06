@@ -5,6 +5,7 @@ import webbrowser
 
 _window = None
 _ok = False
+last_error = ""
 
 
 def available() -> bool:
@@ -12,6 +13,8 @@ def available() -> bool:
         import webview  # noqa: F401
         return True
     except Exception as e:
+        global last_error
+        last_error = f"window library missing ({e})"
         print("pywebview missing:", e)
     if getattr(sys, "frozen", False):
         return False
@@ -41,6 +44,10 @@ def run(url: str, hidden: bool = False) -> bool:
         webview.start()
         return True
     except Exception as e:
+        global last_error
+        last_error = f"{e.__class__.__name__}: {e}"
+        import traceback
+        traceback.print_exc()
         print("Desktop window unavailable, using the browser:", e)
         _ok = False
         return False
