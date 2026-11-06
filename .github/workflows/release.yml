@@ -44,9 +44,9 @@ jobs:
       - name: Install optional extras (audio, fast capture, virtual gamepad)
         working-directory: aod/host
         continue-on-error: true
-        timeout-minutes: 8
+        timeout-minutes: 6
         run: |
-          foreach ($p in Get-Content requirements-optional.txt) { pip install $p; if ($LASTEXITCODE -ne 0) { Write-Host "optional $p not installed" } }
+          foreach ($p in Get-Content requirements-optional.txt) { pip install --only-binary=:all: $p; if ($LASTEXITCODE -ne 0) { Write-Host "optional $p not installed" } }
           $global:LASTEXITCODE = 0
       - name: Build AOD.exe
         working-directory: aod/host
