@@ -130,4 +130,48 @@
 
   // phone notifications service: make sure it is running if enabled
   if (native && native.notificationsEnabled && native.notificationsEnabled() && native.setNotifications) native.setNotifications(true);
+
+  // ---------- adaptive quality: step resolution / frame rate down on a weak connection, back up when it recovers
+  $('bAuto').textContent = 'Auto quality: ' + (autoOn ? 'on' : 'off');
+  $('bAuto').onclick = e => { autoOn = !autoOn; store.set('aod_auto', autoOn ? '1' : '0'); autoLvl = 0; sendCfg(); e.target.textContent = 'Auto quality: ' + (autoOn ? 'on' : 'off'); };
+  let badN = 0, goodN = 0, prevStats = null, prevPc = null;
+  setInterval(async () => {
+    if (!autoOn || !ws || ws.readyState !== 1 || document.hidden) return;
+    let loss = 0, rtt = 0;
+    if (!jpegActive && pc) {
+      try {
+        if (pc !== prevPc) { prevPc = pc; prevStats = null; }
+        let inb, cp;
+        (await pc.getStats()).forEach(r => {
+          if (r.type === 'inbound-rtp' && r.kind === 'video') inb = r;
+          if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime != null) cp = r;
+        });
+        if (inb) {
+          if (prevStats) { const dl = inb.packetsLost - prevStats.l, dr = inb.packetsReceived - prevStats.r; loss = dl > 0 ? dl / (dl + dr) : 0; }
+          prevStats = {l: inb.packetsLost, r: inb.packetsReceived};
+        }
+        if (cp) rtt = cp.currentRoundTripTime * 1000;
+      } catch {}
+    }
+    const target = Math.max(10, $('fps').value * (1 - .08 * autoLvl));
+    const bad = loss > .04 || lastFps < target * .6 || rtt > 300;
+    const good = loss < .005 && lastFps >= target * .9 && rtt < 100;
+    if (bad) { goodN = 0; if (++badN >= 2 && autoLvl < 6) { autoLvl++; badN = 0; sendCfg(); } }
+    else if (good) { badN = 0; if (++goodN >= 6 && autoLvl > 0) { autoLvl--; goodN = 0; sendCfg(); } }
+    else { badN = 0; }
+  }, 2000);
+
+  // ---------- screenshot + recording
+  $('bShot').onclick = () => {
+    location.href = `/api/screenshot?token=${encodeURIComponent(tok())}&mon=${info.current}&dl=1&save=1`;
+    toast('Screenshot saved to this phone and to Pictures\\AOD on the PC');
+  };
+  const recUi = on => { $('bRec').textContent = on ? '⏹' : '⏺'; $('bRec').style.color = on ? 'var(--bad)' : ''; $('bRec').classList.toggle('on', on); };
+  $('bRec').onclick = async () => {
+    const on = $('bRec').textContent === '⏺';
+    if (on && jpegActive) return toast('Recording needs WebRTC video (Settings > Video)');
+    const r = await post('/api/record', {on});
+    recUi(r.on); toast(r.on ? 'Recording on the PC…' : 'Saving recording to Videos\\AOD on the PC');
+  };
+  api('/api/record').then(r => r.json()).then(r => recUi(r.on)).catch(() => {});
 })();

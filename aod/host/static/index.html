@@ -44,6 +44,19 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
 .list .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px}.chips button{flex:none;min-height:34px;padding:4px 12px}
 .bar2{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.bar2>i{display:block;height:100%;background:var(--accent)}
+@media (min-width:760px) and (min-height:480px){
+  #app{flex-direction:row-reverse}
+  #app>.view{width:100%}
+  #nav{flex-direction:column;border-top:0;border-right:1px solid var(--line);width:84px;padding:8px 0}
+  #nav button{flex:none;min-height:64px;width:100%}
+  .page{max-width:900px;margin:0 auto;width:100%}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+}
+@media (max-height:480px) and (orientation:landscape){
+  #nav button{min-height:36px;padding:2px 8px}#nav button small{display:none}
+  .bar button{min-height:34px;padding:3px 10px}.bar{padding:3px}
+  #nav{padding-bottom:0}
+}
 #kb{position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0}
 </style>
 </head>
@@ -69,7 +82,7 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
       <label>Quality (JPEG mode) <input type="range" id="q" min="20" max="90" value="55"></label>
       <label>Frame rate <input type="range" id="fps" min="5" max="60" value="30"></label>
       <label>Cursor speed <input type="range" id="sens" min="5" max="40" value="15"></label>
-      <div style="display:flex;gap:8px"><button id="bVideo" style="flex:1">Video: auto</button><button id="bZoom" style="flex:1">Reset zoom</button></div>
+      <div style="display:flex;gap:8px"><button id="bAuto" style="flex:1">Auto quality: on</button><button id="bVideo" style="flex:1">Video: auto</button><button id="bZoom" style="flex:1">Reset zoom</button></div>
     </div>
     <div class="sheet" id="clipsheet">
       <textarea id="cliptext" placeholder="PC clipboard appears here"></textarea>
@@ -88,7 +101,7 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
     <div class="bar">
       <button id="bKb">⌨</button><button id="bMode">Touchpad</button><button id="bRight">Right-click</button>
       <button id="bMon">Screen 1</button><button id="bSound">🔇</button><button id="bClip">Clipboard</button>
-      <button id="bSet">⚙</button><button id="bHide">⛶</button>
+      <button id="bShot">📷</button><button id="bRec">⏺</button><button id="bSet">⚙</button><button id="bHide">⛶</button>
     </div>
   </div>
 
@@ -181,8 +194,12 @@ async function connect(){
 }
 function retry(){ clearTimeout(reconnectTimer); reconnectTimer=setTimeout(connect,2000); }
 const send = o => ws && ws.readyState===1 && ws.send(JSON.stringify(o));
-function sendCfg(){ send({t:'cfg', rtc_scale:$('sc').value/100, scale:$('sc').value/100, quality:+$('q').value, fps:+$('fps').value}); }
-['sc','q','fps'].forEach(i => $(i).onchange = sendCfg);
+let autoOn = store.get('aod_auto')!=='0', autoLvl = 0, lastFps = 0;
+function sendCfg(){
+  const l = autoOn ? autoLvl : 0, s = Math.max(.25, $('sc').value/100*Math.pow(.85,l));
+  send({t:'cfg', rtc_scale:s, scale:s, quality:Math.max(25,Math.round($('q').value*(1-.06*l))), fps:Math.max(10,Math.round($('fps').value*(1-.08*l)))});
+}
+['sc','q','fps'].forEach(i => $(i).onchange = () => { autoLvl = 0; sendCfg(); });
 
 let onMsg; let frames=0, t0=performance.now(), cvctx=$('cv').getContext('2d'), lastClip='';
 onMsg = async function(ev){
@@ -201,7 +218,7 @@ onMsg = async function(ev){
 }
 setInterval(()=>{ const now=performance.now(); const vid=$('vid');
   if(vid.getVideoPlaybackQuality && !jpegActive){ const q=vid.getVideoPlaybackQuality(); frames=q.totalVideoFrames-(setInterval.prev||0); setInterval.prev=q.totalVideoFrames; }
-  $('status').textContent = ws&&ws.readyState===1 ? `${jpegActive?'JPEG':'WebRTC'} · ${Math.round(frames*1000/(now-t0))} fps` : $('status').textContent; frames=0; t0=now; },1000);
+  lastFps = Math.round(frames*1000/(now-t0)); $('status').textContent = ws&&ws.readyState===1 ? `${jpegActive?'JPEG':'WebRTC'} · ${lastFps} fps${autoOn&&autoLvl?' · auto ▼'+autoLvl:''}` : $('status').textContent; frames=0; t0=now; },1000);
 
 // ================= video (WebRTC with JPEG fallback) =================
 function stopRtc(){ if(pc){ try{pc.close()}catch{} pc=null; } }

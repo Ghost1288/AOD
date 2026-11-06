@@ -157,3 +157,20 @@ def idle_seconds() -> float:
     if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
         return 1e9
     return ((ctypes.windll.kernel32.GetTickCount() - lii.dwTime) & 0xFFFFFFFF) / 1000.0
+
+
+def enable_wol() -> None:
+    """Turn on Wake-on-LAN for the network card and switch off Windows Fast Startup (which blocks it). Needs admin: asks once."""
+    if sys.platform != "win32":
+        return
+    script = ("Get-NetAdapter -Physical | Where-Object Status -eq 'Up' | ForEach-Object { "
+              "Set-NetAdapterPowerManagement -Name $_.Name -WakeOnMagicPacket Enabled -ErrorAction SilentlyContinue; "
+              "Set-NetAdapterAdvancedProperty -Name $_.Name -DisplayName 'Wake on Magic Packet' -DisplayValue 'Enabled' -ErrorAction SilentlyContinue }; "
+              "reg add 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power' /v HiberbootEnabled /t REG_DWORD /d 0 /f")
+    if os.environ.get("AOD_SERVICE") == "1":
+        subprocess.Popen(["powershell", "-NoProfile", "-Command", script], creationflags=0x08000000)
+    else:
+        arg = script.replace("'", "''")
+        subprocess.Popen(["powershell", "-NoProfile", "-Command",
+                          f"Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList '-NoProfile','-Command','{arg}'"],
+                         creationflags=0x08000000)

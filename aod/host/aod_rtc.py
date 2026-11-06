@@ -110,6 +110,85 @@ class Capturer:
         return await asyncio.get_running_loop().run_in_executor(None, enc)
 
 
+class Recorder:
+    """Records what the phone is watching into an MP4 on the PC (x264, encoded on a background thread)."""
+
+    def __init__(self):
+        self.path = None
+        self.q = None
+        self.on = False
+        self.t = None
+        self.done = None            # callback(path or None) when the file is finished
+
+    def start(self, path, done=None) -> None:
+        if self.on:
+            return
+        self.path, self.done, self.on = path, done, True
+        self.q = queue.Queue(maxsize=12)
+        self.t = threading.Thread(target=self._run, daemon=True)
+        self.t.start()
+
+    def stop(self) -> None:
+        if self.on:
+            self.on = False
+            try:
+                self.q.put(None, timeout=2)
+            except Exception:
+                pass
+
+    def write(self, frame) -> None:
+        if self.on:
+            try:
+                self.q.put_nowait((frame, time.monotonic()))
+            except queue.Full:
+                pass                # encoder is behind: drop the frame
+
+    def _run(self) -> None:
+        import av
+        box = stream = None
+        t0 = last = None
+        ok = False
+        try:
+            while True:
+                item = self.q.get()
+                if item is None:
+                    break
+                frame, t = item
+                if box is None:
+                    self.path.parent.mkdir(parents=True, exist_ok=True)
+                    box = av.open(str(self.path), "w")
+                    stream = box.add_stream("libx264", rate=30)
+                    stream.width, stream.height = frame.width // 2 * 2, frame.height // 2 * 2
+                    stream.pix_fmt = "yuv420p"
+                    stream.codec_context.time_base = Fraction(1, 1000)
+                    stream.options = {"preset": "ultrafast", "crf": "27"}
+                    t0 = t
+                ms = int((t - t0) * 1000)
+                if last is not None and ms <= last:
+                    ms = last + 1
+                last = ms
+                f = frame.reformat(width=stream.width, height=stream.height, format="yuv420p")
+                f.pts, f.time_base = ms, Fraction(1, 1000)
+                for pkt in stream.encode(f):
+                    box.mux(pkt)
+            if box is not None:
+                for pkt in stream.encode():
+                    box.mux(pkt)
+                box.close()
+                ok = True
+        except Exception as e:
+            print("Recording failed:", e)
+        self.on = False
+        if self.done:
+            try:
+                self.done(self.path if ok else None)
+            except Exception:
+                pass
+
+
+RECORDER = Recorder()
+
+
 class ScreenTrack(MediaStreamTrack):
     kind = "video"
     MAX_W = 1920
@@ -134,6 +213,7 @@ class ScreenTrack(MediaStreamTrack):
         frame = frame.reformat(width=ow, height=oh, format="yuv420p")
         if self.t0 is None:
             self.t0 = time.monotonic()
+        RECORDER.write(frame)
         frame.pts = int((time.monotonic() - self.t0) * 90000)
         frame.time_base = Fraction(1, 90000)
         return frame

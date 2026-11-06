@@ -279,6 +279,44 @@ async def api_sysinfo(request):
     return web.json_response(info)
 
 
+def _shot_dir(kind: str) -> Path:
+    return USER_HOME / kind / "AOD"
+
+
+async def api_screenshot(request):
+    authed(request)
+    q = request.query
+    mons = await capturer.monitors()
+    idx = min(max(1, int(q.get("mon") or st_mon())), len(mons))
+    data = await capturer.jpeg(idx, 1.0, 92)
+    name = time.strftime("AOD-%Y%m%d-%H%M%S.jpg")
+    if q.get("save") == "1":
+        d = _shot_dir("Pictures")
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_bytes(data)
+        events.push("Screenshot saved", str(d / name))
+    headers = {"Content-Disposition": f'attachment; filename="{name}"'} if q.get("dl") == "1" else {}
+    return web.Response(body=data, content_type="image/jpeg", headers=headers)
+
+
+def st_mon() -> int:
+    return 1
+
+
+async def api_record(request):
+    authed(request)
+    if request.method == "POST":
+        on = bool((await request.json()).get("on"))
+        if on and not aod_rtc.RECORDER.on:
+            path = _shot_dir("Videos") / time.strftime("AOD-%Y%m%d-%H%M%S.mp4")
+            aod_rtc.RECORDER.start(path, lambda p: events.push(
+                "Recording saved" if p else "Recording failed", str(p) if p else "No video was being streamed"))
+        elif not on:
+            aod_rtc.RECORDER.stop()
+    r = aod_rtc.RECORDER
+    return web.json_response({"on": r.on, "path": str(r.path) if r.path else None})
+
+
 async def api_procs(request):
     authed(request)
     return web.json_response(await asyncio.get_running_loop().run_in_executor(None, feat.processes))
@@ -512,6 +550,8 @@ async def admin_action(request):
     elif a == "setting":
         k, v = request.query.get("k", ""), request.query.get("v", "")
         aod_settings.update({k: (v == "1") if k in ("autolock", "notify_downloads") else v})
+    elif a == "wol":
+        threading.Thread(target=feat.enable_wol, daemon=True).start()
     elif a == "service_install":
         import aod_launcher
         threading.Thread(target=aod_launcher.install, daemon=True).start()
@@ -554,6 +594,9 @@ def make_app() -> web.Application:
     r.add_get("/api/roots", api_roots)
     r.add_get("/api/files", api_files)
     r.add_get("/api/download", api_download)
+    r.add_get("/api/screenshot", api_screenshot)
+    r.add_get("/api/record", api_record)
+    r.add_post("/api/record", api_record)
     r.add_post("/api/upload", api_upload)
     r.add_get("/api/shortcuts", api_shortcuts_get)
     r.add_put("/api/shortcuts", api_shortcuts_put)

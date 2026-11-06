@@ -86,3 +86,7 @@ GitHub Release (with `version.json`). The repo must be **public** so the apps ca
 - **Fingerprint lock** (Power tab > Smart features): the phone app asks for fingerprint/PIN on open. **Auto-lock PC** locks Windows when your phone disconnects.
 - **PC notifications**: "download finished" and "process closed" alerts on your phone (turn on in Smart features). Tap the bell on a process to be told when it closes.
 - **Share to PC**: in any app choose Share > AOD to open a link on the PC, copy text to its clipboard, or send files (saved to Downloads\AOD).
+- **Adaptive quality**: AOD lowers resolution and frame rate when the connection is weak and raises them again when it recovers (Screen > settings > Auto quality).
+- **Screenshots and recording**: 📷 saves a full-resolution screenshot to your phone and to `Pictures\AOD` on the PC; ⏺ records the stream to `Videos\AOD` on the PC.
+- **Tablet and landscape layouts**: side navigation rail on large screens, compact bars in landscape.
+- **Wake-on-LAN**: dashboard > "Set up Wake-on-LAN" prepares Windows; the phone app's "Wake PC" button on the offline screen then switches the PC on from home Wi-Fi.

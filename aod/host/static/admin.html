@@ -43,6 +43,7 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
   <div class="row" style="align-items:center;gap:10px"><button id="alock"></button><span class="dim">Locks this PC about a minute after your phone disconnects (only if nobody is using the PC).</span></div>
   <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="adl"></button><span class="dim">Sends "Download finished" notifications to your phone.</span></div>
   <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="svc"></button><span class="dim" id="svctxt"></span></div>
+  <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="wol">Set up Wake-on-LAN</button><span class="dim">Lets your phone switch this PC on from sleep or off when you're on home Wi-Fi. Windows asks for permission once. Also turn on "Wake on LAN" in your BIOS if it still doesn't wake.</span></div>
 </div>
 <h2>Updates</h2>
 <div class="row" style="align-items:center"><span id="updtxt" class="dim"></span><button id="updnow">Check / install update</button><button id="updauto"></button></div>
@@ -53,6 +54,7 @@ const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
 const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
 $('pause').onclick=()=>post('pause');$('pairing').onclick=()=>post('pairing');$('newpin').onclick=()=>post('new_pin');
 $('alock').onclick=()=>post('setting?k=autolock&v='+(window._s.autolock?0:1));$('adl').onclick=()=>post('setting?k=notify_downloads&v='+(window._s.notify_downloads?0:1));
+$('wol').onclick=()=>{post('wol');alert('Approve the Windows permission prompt. Then test from the phone app while the PC sleeps.')};
 $('svc').onclick=()=>{if(window._s.service){if(confirm('Stop running as a service? AOD will no longer start at boot.'))post('service_remove')}else if(confirm('Run AOD as a Windows service? It starts at boot, works on the lock screen and admin prompts. Windows will ask for permission.'))post('service_install')};
 $('updnow').onclick=()=>post('update');$('updauto').onclick=()=>post('autoupd');
 $('quit').onclick=async()=>{if(!confirm('Close AOD? Your phone will be disconnected and remote control stops until you start AOD again.'))return;clearInterval(window._t);await fetch('/_admin/quit',{method:'POST',headers:H}).catch(()=>{});document.body.innerHTML='<div style="padding:60px;text-align:center"><h1>AOD has been closed</h1><p class=dim>You can close this tab. Start AOD again from the Start menu or start_aod.bat.</p></div>';};
