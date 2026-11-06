@@ -449,6 +449,36 @@ def make_admin_app() -> web.Application:
     return app
 
 
+async def start_site(site) -> None:
+    """Bind a port, retrying for ~10 s (an old copy may still be shutting down after an update)."""
+    for attempt in range(10):
+        try:
+            await site.start()
+            return
+        except OSError:
+            if attempt == 9:
+                raise
+            await asyncio.sleep(1)
+
+
+def already_running() -> bool:
+    import urllib.request
+    try:
+        with urllib.request.urlopen(ADMIN_URL + "_admin/state", timeout=1.5) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def fatal(msg: str) -> None:
+    print(msg)
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.user32.MessageBoxW(0, msg, "AOD", 0x10)
+        except Exception:
+            pass
+
+
 async def serve() -> None:
     global LOOP
     LOOP = asyncio.get_running_loop()
@@ -456,10 +486,10 @@ async def serve() -> None:
     ctx.load_cert_chain(CERT, KEY)
     r1 = web.AppRunner(make_app())
     await r1.setup()
-    await web.TCPSite(r1, "0.0.0.0", PORT, ssl_context=ctx).start()
+    await start_site(web.TCPSite(r1, "0.0.0.0", PORT, ssl_context=ctx))
     r2 = web.AppRunner(make_admin_app())
     await r2.setup()
-    await web.TCPSite(r2, "127.0.0.1", ADMIN_PORT).start()
+    await start_site(web.TCPSite(r2, "127.0.0.1", ADMIN_PORT))
     print("AOD is running. Leave this window open (or use the tray icon).")
     if os.environ.get("AOD_NO_BROWSER") != "1":
         import webbrowser
@@ -472,6 +502,10 @@ def main() -> None:
     import aod_tray
     import time as _t
     _t.sleep(float(os.environ.get("AOD_START_DELAY", "0")))   # after a self-update restart
+    if already_running():
+        print("AOD is already running on this PC. Opening its dashboard instead.")
+        webbrowser.open(ADMIN_URL)
+        return
     ip, base, pin = urls()
     print("\n=== AOD host ===")
     print(f"Dashboard (this PC):  {ADMIN_URL}   <- opens automatically")
@@ -486,7 +520,12 @@ def main() -> None:
         pass
     aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater)
     updater.start()
-    asyncio.run(serve())
+    try:
+        asyncio.run(serve())
+    except OSError as e:
+        fatal(f"AOD couldn't start: port {PORT} or {ADMIN_PORT} is in use by another program ({e}).\n\n"
+              "If AOD is already running, close it from its tray icon (or end AOD.exe / python in Task Manager) and try again.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
