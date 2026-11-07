@@ -35,6 +35,7 @@ import aod_rtc
 import aod_security as sec
 import aod_settings
 import aod_ai
+import aod_watch
 import aod_window
 import aod_update
 import aod_version
@@ -324,7 +325,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
                 text = str(msg.get("text", "")).strip()[:2000]
                 if text and aod_ai.load()["enabled"]:
                     log_activity("ai", "request: " + text[:120], request, who)
-                    loop.run_in_executor(None, assistant.run, text)
+                    loop.run_in_executor(None, assistant.run, text, "look" if msg.get("mode") == "look" else None, bool(msg.get("speak")))
             elif t == "ai_stop":
                 assistant.stop.set()
                 for v in pending.values():
@@ -474,6 +475,31 @@ def do_panic() -> None:
     state.pairing_allowed = False
     clip_hist.clear()
     set_enabled(False)
+
+
+async def api_watches(request):
+    authed(request)
+    loop = asyncio.get_running_loop()
+    if request.method == "POST":
+        b = await request.json()
+        try:
+            r = await loop.run_in_executor(None, lambda: aod_watch.add(
+                str(b.get("url", "")), str(b.get("label", "")), str(b.get("question", "")), int(b.get("every") or 60)))
+            log_activity("watch", "watching " + str(b.get("url", ""))[:120], request)
+            return web.json_response(r)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+    return web.json_response(aod_watch.public())
+
+
+async def api_watch_action(request):
+    authed(request)
+    b = await request.json()
+    wid = str(b.get("id", ""))
+    if request.match_info["a"] == "delete":
+        return web.json_response({"ok": aod_watch.remove(wid)})
+    st_ = await asyncio.get_running_loop().run_in_executor(None, aod_watch.check, wid, events.push)
+    return web.json_response({"status": st_})
 
 
 async def api_windows(request):
@@ -795,6 +821,9 @@ def make_app() -> web.Application:
     r.add_get("/api/download", api_download)
     r.add_get("/api/screenshot", api_screenshot)
     r.add_get("/api/windows", api_windows)
+    r.add_get("/api/watches", api_watches)
+    r.add_post("/api/watches", api_watches)
+    r.add_post("/api/watches/{a}", api_watch_action)
     r.add_get("/api/activity", api_activity)
     r.add_get("/api/clips", api_clips)
     r.add_post("/api/panic", api_panic)
@@ -936,6 +965,7 @@ def main() -> None:
     aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater, open_ui=show_ui, panic=do_panic)
     updater.start()
     events.start_download_watcher()
+    aod_watch.start(events.push)
     hidden = "--hidden" in argv
     headless = SERVICE or os.environ.get("AOD_NO_BROWSER") == "1"
     for _ in range(50):                    # wait until the dashboard server answers

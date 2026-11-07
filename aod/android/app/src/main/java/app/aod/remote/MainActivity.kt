@@ -50,6 +50,9 @@ class MainActivity : Activity() {
     private val host get() = prefs.getString("host", null)
     private val port get() = prefs.getInt("port", 8765)
     private val fp get() = prefs.getString("fp", "")!!.lowercase()
+    private var tts: android.speech.tts.TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingSpeech: String? = null
     private var unlocked = false
     private var prompting = false
     private var pausedAt = 0L
@@ -262,6 +265,15 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun saveHost(name: String, mac: String) { prefs.edit().putString("pcname", name).putString("mac", mac).apply() }
+        @JavascriptInterface fun speak(text: String) {
+            runOnUiThread {
+                val t = tts ?: android.speech.tts.TextToSpeech(this@MainActivity) { st ->
+                    if (st == android.speech.tts.TextToSpeech.SUCCESS) { ttsReady = true; pendingSpeech?.let { s -> tts?.speak(s, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "aod"); pendingSpeech = null } }
+                }.also { tts = it }
+                if (ttsReady) t.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "aod") else pendingSpeech = text
+            }
+        }
+        @JavascriptInterface fun stopSpeak() { runOnUiThread { tts?.stop() } }
         @JavascriptInterface fun startVoice() {
             runOnUiThread {
                 try {
