@@ -34,6 +34,7 @@ import aod_gameinput
 import aod_rtc
 import aod_security as sec
 import aod_settings
+import aod_ai
 import aod_window
 import aod_update
 import aod_version
@@ -210,7 +211,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     async def send_info():
         m = mon_geom()
         await ws.send_json({"t": "info", "monitors": len(mons), "current": st["mon"],
-                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK, "win": st["win"],
+                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK, "win": st["win"], "ai": aod_ai.public()["enabled"] and aod_ai.public()["has_key"],
                             "pad": aod_gamepad.importable(), "version": APP_VERSION})
 
     async def jpeg_loop():
@@ -248,6 +249,51 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
                 remember_clip(v)
                 await ws.send_json({"t": "clip", "s": v})
 
+    # ---- AI assistant (runs in a worker thread; talks to the phone through these callbacks)
+    pending = {}                                  # approval id -> [Event, result]
+
+    def ai_emit(o):
+        asyncio.run_coroutine_threadsafe(ws.send_json({"t": "ai", **o}), loop)
+
+    def ai_confirm(text):
+        cid = str(time.time())
+        ev = threading.Event()
+        pending[cid] = [ev, False]
+        ai_emit({"kind": "confirm", "id": cid, "text": text})
+        log_activity("ai", "approval asked: " + text, None, who)
+        ev.wait(120)
+        ok = pending.pop(cid, [None, False])[1]
+        log_activity("ai", ("approved: " if ok else "denied: ") + text, None, who)
+        return ok
+
+    class _IO:
+        def shot(self):
+            rect = win_rect()
+            data = asyncio.run_coroutine_threadsafe(
+                capturer.jpeg(st["mon"], 1.0, 70, rect), loop).result(15)
+            from PIL import Image
+            import io as _io
+            im = Image.open(_io.BytesIO(data))
+            w0, h0 = im.size
+            k = min(1.0, 1280 / max(w0, h0))
+            if k < 1:
+                im = im.resize((int(w0 * k), int(h0 * k)), Image.LANCZOS)
+            buf = _io.BytesIO()
+            im.save(buf, "JPEG", quality=70)
+            return buf.getvalue(), im.width, im.height, mon_geom()
+
+        def inp(self, msg):
+            aod_desktop.sync()
+            apply_input(msg, mon_geom())
+
+        def clip_get(self):
+            return feat.clip_get()
+
+        def clip_set(self, s):
+            feat.clip_set(s)
+
+    assistant = aod_ai.Assistant(_IO(), ai_emit, ai_confirm)
+
     async def rtc_closed():
         if not ws.closed and "jpeg" not in tasks and "rtc_failed" not in tasks:
             await ws.send_json({"t": "rtc_closed"})
@@ -274,6 +320,22 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
                 mons = await capturer.monitors()
                 st["mon"] = min(max(1, int(msg["i"])), len(mons))
                 await send_info()
+            elif t == "ai":
+                text = str(msg.get("text", "")).strip()[:2000]
+                if text and aod_ai.load()["enabled"]:
+                    log_activity("ai", "request: " + text[:120], request, who)
+                    loop.run_in_executor(None, assistant.run, text)
+            elif t == "ai_stop":
+                assistant.stop.set()
+                for v in pending.values():
+                    v[0].set()
+            elif t == "ai_ok":
+                v = pending.get(str(msg.get("id")))
+                if v:
+                    v[1] = bool(msg.get("ok"))
+                    v[0].set()
+            elif t == "ai_reset":
+                assistant.history.clear()
             elif t == "window":
                 st["win"] = int(msg.get("hwnd") or 0)
                 if st["win"] and not aod_desktop.window_rect(st["win"]):
@@ -331,6 +393,9 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         gi.release_all()
         aod_gamepad.pad.release()
         sessions.discard(ws)
+        assistant.stop.set()
+        for v in list(pending.values()):
+            v[0].set()
         log_activity("disconnect", f"{who} disconnected", request, who)
         schedule_autolock()
         for task in tasks.values():
@@ -623,7 +688,7 @@ async def admin_state(request):
     return web.json_response({
         "url": base, "pin": pin, "pin_expires": int(sec.PIN_LIFETIME - (time.time() - state.pin_time)),
         "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
-        "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error, "activity": recent_activity(15),
+        "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error, "activity": recent_activity(15), "ai": aod_ai.public(),
         "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
         "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable(),
         "settings": settings_payload()})
@@ -676,6 +741,9 @@ async def admin_action(request):
     elif a == "setting":
         k, v = request.query.get("k", ""), request.query.get("v", "")
         aod_settings.update({k: (v == "1") if k in ("autolock", "notify_downloads") else v})
+    elif a == "ai_config":
+        body = await request.json()
+        aod_ai.update({k: body[k] for k in ("key", "clear_key", "model", "enabled", "ask") if k in body})
     elif a == "panic":
         log_activity("panic", "panic pressed on the PC")
         do_panic()

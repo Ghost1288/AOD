@@ -46,6 +46,17 @@ code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
   <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="svc"></button><span class="dim" id="svctxt"></span></div>
   <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="wol">Set up Wake-on-LAN</button><span class="dim">Lets your phone switch this PC on from sleep or off when you're on home Wi-Fi. Windows asks for permission once. Also turn on "Wake on LAN" in your BIOS if it still doesn't wake.</span></div>
 </div>
+<h2>AI assistant</h2>
+<div class="card">
+  <div class="dim" id="aist" style="margin-bottom:10px"></div>
+  <div class="row" style="align-items:center;gap:8px">
+    <input id="aikey" type="password" placeholder="Anthropic API key (sk-ant-...)" autocomplete="off" style="flex:1;min-width:220px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px">
+    <select id="aimodel" style="background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px"></select>
+    <select id="aiask" style="background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px"><option value="risky">Ask only for risky actions</option><option value="all">Ask before every action</option></select>
+    <button id="aisave">Save</button><button id="aioff"></button>
+  </div>
+  <p class="dim" style="font-size:13px;margin:10px 0 0">Ask your PC for things in plain language from the phone's Assistant tab. The key stays on this PC and is never sent to your phone. Screenshots and messages are sent to Anthropic only while you use the assistant, and it asks your phone before running commands or changing power.</p>
+</div>
 <h2>Recent activity</h2>
 <div class="card"><table id="act"></table><div style="margin-top:12px"><button class="bad" id="panic">Panic: disconnect everyone and pause AOD</button></div></div>
 <h2>Updates</h2>
@@ -57,6 +68,9 @@ const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
 const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
 $('pause').onclick=()=>post('pause');$('pairing').onclick=()=>post('pairing');$('newpin').onclick=()=>post('new_pin');
 $('alock').onclick=()=>post('setting?k=autolock&v='+(window._s.autolock?0:1));$('adl').onclick=()=>post('setting?k=notify_downloads&v='+(window._s.notify_downloads?0:1));
+const jpost=(p,b)=>fetch('/_admin/'+p,{method:'POST',headers:{...H,'content-type':'application/json'},body:JSON.stringify(b)}).then(load);
+$('aisave').onclick=()=>{const b={model:$('aimodel').value,ask:$('aiask').value};if($('aikey').value.trim())b.key=$('aikey').value.trim();jpost('ai_config',b);$('aikey').value=''};
+$('aioff').onclick=()=>jpost('ai_config',{enabled:!window._ai.enabled});
 $('panic').onclick=()=>{if(confirm('Disconnect every phone, stop new pairing and pause AOD? Use Resume to turn it back on.'))post('panic')};
 $('wol').onclick=()=>{post('wol');alert('Approve the Windows permission prompt. Then test from the phone app while the PC sleeps.')};
 $('svc').onclick=()=>{if(window._s.service){if(confirm('Stop running as a service? AOD will no longer start at boot.'))post('service_remove')}else if(confirm('Run AOD as a Windows service? It starts at boot, works on the lock screen and admin prompts. Windows will ask for permission.'))post('service_install')};
@@ -71,6 +85,10 @@ async function load(){
   $('qrc').style.display=s.tailscale?'block':'none';
   $('remote').innerHTML=(s.tailscale?'<span class="tag">Tailscale connected</span> your PC is reachable away from home at <code>'+s.tailscale+'</code>. The AOD app switches to it automatically when you leave Wi-Fi.':'<span class="tag off">Tailscale not found</span> To use AOD away from home, install <b>Tailscale</b> (tailscale.com/download) on this PC and your phone and sign in to the same account. Then reopen this page.')+'<br><br>Gaming mode: screen capture <b>'+(s.dx?'fast (DXGI)':'standard')+'</b> · Xbox controller emulation <b>'+(s.pad?'available':'needs the ViGEmBus driver')+'</b>'+(s.pad?'':' <button id="vig" onclick="post(\'vigem\');alert(\'Run the installer that opens, then restart AOD.\')">Install controller driver</button>');
   $('act').innerHTML=(s.activity||[]).map(a=>`<tr><td class="dim" style="white-space:nowrap">${new Date(a.ts*1000).toLocaleString()}</td><td>${a.text.replace(/</g,'&lt;')}</td><td class="dim">${a.ip||''}</td></tr>`).join('')||'<tr><td class="dim">Nothing yet.</td></tr>';
+  window._ai=s.ai;if(!$('aimodel').options.length){$('aimodel').innerHTML=s.ai.models.map(m=>`<option>${m}</option>`).join('');}
+  if(document.activeElement!==$('aimodel')&&document.activeElement!==$('aiask')){$('aimodel').value=s.ai.model;$('aiask').value=s.ai.ask;}
+  $('aist').innerHTML=(s.ai.has_key?'<span class="tag">Key saved</span>':'<span class="tag off">No key yet</span>')+' '+(s.ai.enabled?'Assistant is on.':'Assistant is turned off.');
+  $('aioff').textContent=s.ai.enabled?'Turn off':'Turn on';
   $('wnote').textContent=s.window_error?'Desktop window unavailable: '+s.window_error:'';
   $('st').textContent=s.enabled?'Running':'Paused';$('st').className='tag'+(s.enabled?'':' off');
   $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';

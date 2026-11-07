@@ -90,7 +90,8 @@ def test_file_operations(tmp_path):
 
 
 def test_file_operations_refuse_dangerous():
-    for bad in (Path(os.environ["AOD_USER_HOME"]), Path(Path.cwd().anchor)):
+    import aod_paths
+    for bad in (aod_paths.USER_HOME, Path(Path.cwd().anchor)):
         try:
             feat.fs_op("delete", str(bad))
             raise AssertionError("should have refused")

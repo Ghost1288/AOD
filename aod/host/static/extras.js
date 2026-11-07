@@ -20,7 +20,7 @@
   const banner = Object.assign(document.createElement('div'), {id: 'banner'});
   document.body.append(toastEl, banner);
   let tt, bt;
-  const toast = m => { toastEl.textContent = m; toastEl.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => toastEl.style.display = 'none', 3200); };
+  const toast = window.toast = m => { toastEl.textContent = m; toastEl.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => toastEl.style.display = 'none', 3200); };
   const post = (path, body) => api(path, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)}).then(r => r.json());
 
   // ---------- notification banner (PC -> phone, while the app is open)

@@ -161,6 +161,7 @@ input[type=range]{accent-color:var(--accent)}
   </div></div>
 
   <!-- POWER -->
+  <div class="view" id="v-ai"></div>
   <div class="view" id="v-power"><div class="vh"><img src="/logo.png" alt="">Power & safety</div><div class="page">
     <h3>Media</h3>
     <div class="grid"><button data-key="prev" data-ic="prev"></button><button data-key="playpause" data-ic="play"></button><button data-key="next" data-ic="next"></button>
@@ -180,6 +181,7 @@ input[type=range]{accent-color:var(--accent)}
     <button data-view="files" data-ic="files"><small>Files</small></button>
     <button data-view="apps" data-ic="apps"><small>Apps</small></button>
     <button data-view="tasks" data-ic="tasks"><small>Tasks</small></button>
+    <button data-view="ai" data-ic="ai"><small>Assistant</small></button>
     <button data-view="power" data-ic="power"><small>Power</small></button>
   </div>
 </div>
@@ -210,6 +212,8 @@ const IC={screen:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 2
  win:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
  snd:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
  muted:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
+ ai:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+ mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', send:'<path d="M5 12l14-7-5 14-2-6z"/>',
  doc:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
  prev:'<path d="M19 5v14L8 12z" fill="currentColor"/><path d="M5 5v14"/>', next:'<path d="M5 5v14l11-7z" fill="currentColor"/><path d="M19 5v14"/>', play:'<path d="M7 5v14l11-7z" fill="currentColor"/>'};
 const svg = n => `<svg class="i" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
@@ -449,5 +453,6 @@ if(tok()) connect();
 </script>
 <script src="game.js"></script>
 <script src="extras.js"></script>
+<script src="ai.js"></script>
 </body>
 </html>

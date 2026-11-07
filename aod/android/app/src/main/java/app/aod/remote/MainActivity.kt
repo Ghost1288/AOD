@@ -170,6 +170,13 @@ class MainActivity : Activity() {
             else { Toast.makeText(this, "That is not an AOD QR code", Toast.LENGTH_LONG).show(); askForPc() }
             return
         }
+        if (requestCode == 78) {
+            val said = data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (resultCode == RESULT_OK && said != null) {
+                web.evaluateJavascript("window.onVoice(" + org.json.JSONObject.quote(said) + ")", null)
+            }
+            return
+        }
         if (requestCode == 77) {
             fileCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
             fileCallback = null
@@ -255,6 +262,17 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun saveHost(name: String, mac: String) { prefs.edit().putString("pcname", name).putString("mac", mac).apply() }
+        @JavascriptInterface fun startVoice() {
+            runOnUiThread {
+                try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Tell your PC what to do")
+                    }, 78)
+                } catch (_: Exception) { Toast.makeText(this@MainActivity, "Speech recognition isn't available on this phone", Toast.LENGTH_LONG).show() }
+            }
+        }
         @JavascriptInterface fun relayUrl(): String = prefs.getString("relay_url", "") ?: ""
         @JavascriptInterface fun relayKey(): String = prefs.getString("relay_key", "") ?: ""
         @JavascriptInterface fun setRelay(url: String, key: String) { prefs.edit().putString("relay_url", url).putString("relay_key", key).apply() }
