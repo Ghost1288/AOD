@@ -16,7 +16,6 @@
         android:icon="@drawable/ic_launcher"
         android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="false"
         android:allowBackup="false">
         <activity
             android:name=".MainActivity"

@@ -75,14 +75,14 @@ jobs:
             Copy-Item $src.FullName "$site\vgamepad" -Recurse -Force
           }
           pip install pyyaml
-          python -c "import vgamepad; print('vgamepad OK', vgamepad.__file__)"
+          python -c "import importlib.util;s=importlib.util.find_spec('vgamepad');print('vgamepad files:', s.origin if s else 'MISSING')"
           $global:LASTEXITCODE = 0
       - name: Build AOD.exe
         working-directory: aod/host
         run: |
           python make_icon.py
           $extra = @()
-          foreach ($m in "soundcard","dxcam","vgamepad","webview","clr_loader","pythonnet") { python -c "import $m" 2>$null; if ($LASTEXITCODE -eq 0) { $extra += "--collect-all"; $extra += $m } }
+          foreach ($m in "soundcard","dxcam","vgamepad","webview","clr_loader","pythonnet") { python -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$m') else 1)" 2>$null; if ($LASTEXITCODE -eq 0) { $extra += "--collect-all"; $extra += $m } }
           $global:LASTEXITCODE = 0
           pyinstaller --noconfirm --onedir --noconsole --name AOD --icon icon.ico `
             --add-data "static;static" `
