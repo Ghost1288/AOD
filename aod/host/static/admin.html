@@ -52,7 +52,54 @@ input:focus,select:focus{outline:none;border-color:var(--accent)}
 .foot{background:var(--top);display:flex;align-items:center;gap:18px;padding:7px 16px;font-size:12px;color:var(--dim);border-top:1px solid #050409}
 .foot button{background:none;padding:4px 8px;font-weight:500;color:var(--dim)}.foot button:hover{color:var(--hi);background:none}
 .foot .sp{flex:1}
+
+
+/* ---- intro + setup animations ---- */
+@keyframes aod-pop{0%{opacity:0;transform:scale(.6) rotate(-6deg)}60%{opacity:1;transform:scale(1.06) rotate(1deg)}100%{opacity:1;transform:none}}
+@keyframes aod-glow{0%,100%{box-shadow:0 0 30px #7c3aed55,0 0 0 1px #ffffff1a}50%{box-shadow:0 0 80px #a855f7aa,0 0 0 1px #ffffff33}}
+@keyframes aod-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes aod-track{from{letter-spacing:.9em;opacity:0}to{letter-spacing:.35em;opacity:1}}
+@keyframes aod-ring{0%{transform:scale(.6);opacity:.8}100%{transform:scale(2.2);opacity:0}}
+@keyframes aod-spin{to{transform:rotate(360deg)}}
+@keyframes aod-draw{to{stroke-dashoffset:0}}
+@keyframes aod-out{to{opacity:0;visibility:hidden}}
+#splash{position:fixed;inset:0;z-index:999;background:radial-gradient(600px 420px at 50% 42%,#2a1347,#07060c 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;animation:aod-out .5s ease 1.7s forwards}
+#splash img{width:min(44vw,190px);border-radius:26%;animation:aod-pop .9s cubic-bezier(.2,.9,.3,1.2) both,aod-glow 2s ease-in-out .9s infinite}
+#splash b{font-size:22px;color:#f4f2f9;letter-spacing:.35em;margin-right:-.35em;animation:aod-track 1s ease .5s both}
+#splash i{width:120px;height:3px;border-radius:3px;background:#ffffff14;overflow:hidden;animation:aod-rise .6s ease .9s both}
+#splash i::after{content:"";display:block;height:100%;width:40%;background:linear-gradient(90deg,transparent,#a855f7,transparent);animation:aod-load 1s ease-in-out .9s infinite}
+@keyframes aod-load{from{transform:translateX(-120%)}to{transform:translateX(320%)}}
+.okmark{width:96px;height:96px;overflow:visible}.okmark circle{fill:none;stroke:#a855f7;stroke-width:4;stroke-dasharray:289;stroke-dashoffset:289;animation:aod-draw .7s ease forwards;filter:drop-shadow(0 0 8px #a855f7)}
+.okmark path{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:60;stroke-dashoffset:60;animation:aod-draw .45s ease .6s forwards}
+#done{position:fixed;inset:0;z-index:998;background:#07060cee;backdrop-filter:blur(6px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#f4f2f9;text-align:center}
+#done.show{display:flex;animation:aod-rise .3s ease both}
+#done h2{margin:6px 0 0;font-size:26px;animation:aod-rise .5s ease .9s both}#done p{margin:0;color:#948ba8;animation:aod-rise .5s ease 1.1s both}
+#done .burst{position:absolute;width:96px;height:96px;border-radius:50%;border:2px solid #a855f7;animation:aod-ring 1.2s ease-out .6s both}
+#done .burst.b2{animation-delay:.85s}
+#nopair img.logo{animation:aod-pop .8s cubic-bezier(.2,.9,.3,1.2) both,aod-glow 3s ease-in-out .8s infinite}
+#nopair>*:not(.logo){animation:aod-rise .6s ease both}#nopair>h1{animation-delay:.25s}#nopair>p{animation-delay:.35s}#nopair>input{animation-delay:.45s}#nopair>button{animation-delay:.55s}
+#go:disabled{position:relative;overflow:hidden}
+#go:disabled::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff40,transparent);animation:aod-load 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important}}
+
+/* setup wizard */
+#wiz{position:fixed;inset:0;z-index:900;background:radial-gradient(900px 520px at 50% 30%,#2a1347,#07060c 70%);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+#wiz.show{display:flex;animation:aod-rise .5s ease both}
+#wiz .stepbox{max-width:560px;width:100%;min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#wiz .stepbox>*{animation:aod-rise .5s ease both}
+#wiz h1{margin:0;font-size:30px;color:#f4f2f9}#wiz p{margin:0;color:#948ba8;line-height:1.5;max-width:460px}
+#wiz img.art{width:130px;border-radius:26%;animation:aod-pop .8s cubic-bezier(.2,.9,.3,1.2) both,aod-glow 2.5s ease-in-out infinite!important}
+#wiz .qrs{display:flex;gap:18px;justify-content:center}#wiz .qrs div{background:#fff;border-radius:10px;padding:8px}#wiz .qrs img{width:150px;height:150px;display:block}#wiz .qrs span{display:block;color:#333;font-size:12px;margin-top:4px}
+#wiz .dots{display:flex;gap:8px;margin-top:22px}#wiz .dots i{width:9px;height:9px;border-radius:50%;background:#ffffff26;transition:.3s}#wiz .dots i.on{background:#a855f7;width:26px;border-radius:5px;box-shadow:0 0 12px #a855f7}
+#wiz .pulse{position:relative;width:84px;height:84px;margin:18px 0 8px;display:flex;align-items:center;justify-content:center}
+#wiz .pulse span{position:absolute;inset:0;border-radius:50%;border:2px solid #a855f7;animation:aod-ring 1.8s ease-out infinite}#wiz .pulse span:nth-child(2){animation-delay:.6s}#wiz .pulse span:nth-child(3){animation-delay:1.2s}
+#wiz .pulse svg{width:46px;height:46px;stroke:#d8b4fe;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#wiz .row2{display:flex;gap:10px;margin-top:8px}
+#wiz .skip{position:absolute;top:16px;right:20px;background:none;color:#948ba8}
 </style></head><body>
+<div id="splash"><img src="/logo.png" alt=""><b>AOD</b><i></i></div>
+<div id="done"><div style="position:relative;display:flex;align-items:center;justify-content:center;width:96px;height:96px"><span class="burst"></span><span class="burst b2"></span><svg class="okmark" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/><path d="M30 52l14 14 27-30"/></svg></div><h2 id="doneT">Connected</h2><p id="doneS"></p></div>
+<div id="wiz"><button class="skip" id="wskip">Skip setup</button><div class="stepbox" id="wbox"></div><div class="dots" id="wdots"><i></i><i></i><i></i></div></div>
 <div class="title"><img src="/logo.png" alt=""><b>AOD</b><span class="dim" id="meta"></span><span class="sp"></span><span class="dim" id="st"></span><span class="dot" id="dot"></span></div>
 <div class="nav"><a data-t="home">Home</a><a data-t="devices">Devices</a><a data-t="assistant">Assistant</a><a data-t="security">Security</a><a data-t="settings">Settings</a></div>
 <main>
@@ -119,6 +166,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent)}
   <div class="card dim" id="remote"></div>
   <div class="sec">Updates</div>
   <div class="card"><div class="set"><div class="d"><b id="updtxt"></b></div><button id="updauto"></button><button id="updnow">Check / install update</button></div></div>
+  <div class="sec">Setup</div>
+  <div class="card"><div class="set"><div class="d"><b>Setup guide</b>Replay the welcome walkthrough for linking a phone.</div><button id="rerun">Show guide</button></div></div>
   <div class="sec">Window</div>
   <div class="card"><div class="dim" id="wnote" style="color:var(--bad)"></div><div class="set"><div class="d"><b>Close AOD</b>Your phone will be disconnected until you start AOD again. Closing this window only hides it to the tray.</div><button class="bad" id="quit">Quit AOD</button></div></div>
 </div></div>
@@ -139,6 +188,19 @@ $('updnow').onclick=()=>post('update');$('updauto').onclick=()=>post('autoupd');
 $('quit').onclick=$('quit2').onclick=async()=>{if(!confirm('Close AOD? Your phone will be disconnected and remote control stops until you start AOD again.'))return;clearInterval(window._t);await fetch('/_admin/quit',{method:'POST',headers:H}).catch(()=>{});document.body.innerHTML='<div style="padding:60px;text-align:center;color:#c7d5e0"><h1>AOD has been closed</h1><p class=dim>You can close this tab. Start AOD again from the Start menu or start_aod.bat.</p></div>';};
 $('all').onclick=()=>confirm('Unpair every phone?')&&post('revoke_all');
 let lastPin='';
+setTimeout(()=>{const s=$('splash');s&&s.remove()},2300);
+function celebrate(t,s){$('doneT').textContent=t;$('doneS').textContent=s||'';const d=$('done');d.classList.add('show');setTimeout(()=>d.classList.remove('show'),2600)}
+let lastWizPin='',wizStep=-1,wizOn=false,prevCount=null;
+const flag=()=>{try{return localStorage.getItem('aod_setup_done')==='1'}catch{return false}};
+const ICON='<svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>';
+function wiz(n){wizStep=n;$('wiz').classList.add('show');[...$('wdots').children].forEach((d,i)=>d.classList.toggle('on',i===n));const b=$('wbox');
+ if(n===0)b.innerHTML='<img class="art" src="/logo.png" alt=""><h1>Welcome to AOD</h1><p>Control this PC from your phone: see the screen, use files, run apps and ask the assistant. Let\'s link your phone. It takes about a minute.</p><div class="row2"><button class="primary" id="wn">Get started</button></div>';
+ if(n===1)b.innerHTML='<h1>Install the phone app</h1><p>On your Android phone, open the AOD release page and install <b>AOD.apk</b>, then open the app.</p><div class="qrs"><div><img id="wq0" alt=""><span>Scan with the phone camera</span></div></div><p class="dim sm">github.com/Ghost1288/AOD/releases/latest</p><div class="row2"><button id="wb">Back</button><button class="primary" id="wn">I have the app</button></div>';
+ if(n===2)b.innerHTML='<h1>Scan to pair</h1><p>In the AOD app tap <b>Scan QR</b> and point it here. Then approve the phone when Windows asks.</p><div class="qrs"><div><img id="wq1" alt=""><span>AOD app code</span></div></div><div class="pin" style="font-size:28px">'+($('pin').textContent)+'</div><div class="pulse"><span></span><span></span><span></span>'+ICON+'</div><p>Waiting for your phone…</p><div class="row2"><button id="wb">Back</button></div>';
+ if(n>0){const q=$('wq0')||$('wq1');if(q)q.src=$('qa').src||('/_admin/qr.png?kind=app&n='+Date.now());}
+ if($('wn'))$('wn').onclick=()=>wiz(wizStep+1);if($('wb'))$('wb').onclick=()=>wiz(wizStep-1);}
+function wizDone(){try{localStorage.setItem('aod_setup_done','1')}catch{}$('wiz').classList.remove('show');wizOn=false}
+$('wskip').onclick=wizDone;$('rerun').onclick=()=>{wizOn=true;wiz(0)};
 function tab(n){document.querySelectorAll('.pane').forEach(p=>p.style.display=p.id==='t-'+n?'block':'none');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.t===n));try{localStorage.setItem('aod_tab',n)}catch{}}
 document.querySelectorAll('.nav a').forEach(a=>a.onclick=()=>tab(a.dataset.t));$('addph').onclick=()=>tab('home');
 tab((()=>{try{return localStorage.getItem('aod_tab')||'home'}catch{return 'home'}})());
@@ -154,6 +216,10 @@ async function load(){
   $('aist').innerHTML=(s.ai.has_key?'<span class="tag">Key saved</span>':'<span class="tag off">No key yet</span>')+' '+(s.ai.enabled?'Assistant is on.':'Assistant is turned off.');
   $('aioff').textContent=s.ai.enabled?'Turn off':'Turn on';
   $('wnote').textContent=s.window_error?'Desktop window unavailable: '+s.window_error:'';
+  if(prevCount===null){prevCount=s.devices.length;if(!s.devices.length&&!flag()){wizOn=true;wiz(0)}}
+  else if(s.devices.length>prevCount){prevCount=s.devices.length;if(wizOn)wizDone();celebrate('Phone connected','Approved and paired. You can control this PC now.')}
+  else prevCount=s.devices.length;
+  if(wizOn&&wizStep===2){const pn=document.querySelector('#wbox .pin');if(pn)pn.textContent=s.pin;if(s.pin!==lastWizPin){lastWizPin=s.pin;const q=$('wq1');if(q)q.src='/_admin/qr.png?kind=app&n='+Date.now()}}
   $('st').textContent=s.enabled?'Running':'Paused';$('dot').className='dot'+(s.enabled?'':' off');$('st').className='tag'+(s.enabled?'':' off');$('s-live').textContent=s.live||0;$('s-paired').textContent=s.devices.length;$('s-video').textContent=s.rtc?'WebRTC':'JPEG';$('bar').style.width=Math.max(0,Math.min(100,s.pin_expires/6))+'%';$('ndev').textContent=s.devices.length;$('nphones').textContent=s.live||0;
   $('pause').textContent=s.enabled?'PAUSE':'RESUME';$('pause').className=s.enabled?'':'primary';$('hero').classList.toggle('paused',!s.enabled);$('big').textContent=s.enabled?'Running':'Paused';$('sub').textContent=s.enabled?(s.live?s.live+' phone'+(s.live>1?'s':'')+' connected':'Waiting for a phone to connect'):'Remote control is switched off';
   $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';
