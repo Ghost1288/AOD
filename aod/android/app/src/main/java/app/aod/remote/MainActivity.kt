@@ -234,10 +234,10 @@ class MainActivity : Activity() {
         val mac = prefs.getString("mac", "") ?: ""
         val wake = if (mac.isNotEmpty()) "<a class=b href='aod-app://wake'>Wake PC</a>" else ""
         web.loadDataWithBaseURL(null, """
-            <body style='background:#0b0d12;color:#e8ecf4;font:16px sans-serif;text-align:center;padding:48px 24px'>
-            <h1 style='letter-spacing:.15em'>AOD</h1><p style='color:#8b93a7'>$msg</p>
-            <style>.b{display:block;margin:12px auto;max-width:260px;padding:14px;border-radius:12px;background:#151922;border:1px solid #262c3a;color:#e8ecf4;text-decoration:none}
-            .p{background:#4ade80;color:#04210f;font-weight:700}</style>
+            <body style='background:#07060c;color:#efeaf8;font:16px sans-serif;text-align:center;padding:48px 24px'>
+            <h1 style='letter-spacing:.15em'>AOD</h1><p style='color:#9189a8'>$msg</p>
+            <style>.b{display:block;margin:12px auto;max-width:260px;padding:14px;border-radius:12px;background:#110f19;border:1px solid #262038;color:#efeaf8;text-decoration:none}
+            .p{background:linear-gradient(135deg,#9d4edd,#6d28d9);color:#ffffff;font-weight:700}</style>
             <a class='b p' href='aod-app://retry'>Try again</a>$wake
             <a class=b href='aod-app://rescan'>Pair with a different PC</a></body>""", "text/html", "utf-8", null)
     }

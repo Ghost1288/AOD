@@ -2,8 +2,8 @@
 <html lang="en"><head><link rel="icon" href="/logo.png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AOD dashboard</title>
 <style>
-:root{--bg:#0b0d12;--panel:#151922;--line:#262c3a;--fg:#e8ecf4;--dim:#8b93a7;--accent:#4ade80;--bad:#f87171}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif;padding:24px;max-width:860px;margin:auto}
+:root{--bg:#07060c;--panel:#110f19;--line:#262038;--fg:#efeaf8;--dim:#9189a8;--accent:#a855f7;--bad:#f87171}
+body{margin:0;background:radial-gradient(1000px 420px at 50% -8%,#1b0f2e,var(--bg) 60%) fixed,var(--bg);color:var(--fg);font:15px system-ui,sans-serif;padding:24px;max-width:860px;margin:auto}
 h1{letter-spacing:.15em;margin:0 0 4px}h2{font-size:15px;color:var(--dim);font-weight:600;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.06em}
 .row{display:flex;gap:16px;flex-wrap:wrap}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
 .qr{text-align:center}.qr img{width:200px;height:200px;border-radius:8px;background:#fff}.qr p{margin:8px 0 0;color:var(--dim);font-size:13px;max-width:200px}
@@ -11,10 +11,11 @@ h1{letter-spacing:.15em;margin:0 0 4px}h2{font-size:15px;color:var(--dim);font-w
 button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
 button:hover{border-color:var(--accent)}button.bad:hover{border-color:var(--bad);color:var(--bad)}
 table{width:100%;border-collapse:collapse}td{padding:10px 6px;border-top:1px solid var(--line)}.dim{color:var(--dim)}
-.tag{padding:2px 8px;border-radius:99px;font-size:12px;background:#4ade8022;color:var(--accent)}.tag.off{background:#f8717122;color:var(--bad)}
+button.primary,#updnow{background:linear-gradient(135deg,#9d4edd,#6d28d9);border:0;color:#fff}
+.tag{padding:2px 8px;border-radius:99px;font-size:12px;background:#a855f722;color:var(--accent)}.tag.off{background:#f8717122;color:var(--bad)}
 code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
 </style></head><body>
-<h1>AOD</h1><div class="dim">Control this PC from your phone</div>
+<div style="display:flex;align-items:center;gap:14px"><img src="/logo.png" alt="" style="width:64px;height:64px;border-radius:16px;box-shadow:0 0 30px #7c3aed66"><div><h1>AOD</h1><div class="dim">Control this PC from your phone</div></div></div>
 <h2>Pair a phone</h2>
 <div class="row">
   <div class="card qr"><img id="qa" alt="App QR"><p><b>AOD Android app</b><br>Scan inside the app, or with the phone camera.</p></div>

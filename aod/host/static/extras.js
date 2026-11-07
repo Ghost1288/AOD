@@ -9,8 +9,8 @@
   #cmdOut{white-space:pre-wrap;word-break:break-word;background:#000;border:1px solid var(--line);border-radius:10px;padding:10px;font:12px ui-monospace,monospace;max-height:220px;overflow:auto;display:none}
   #scEd{position:fixed;inset:0;z-index:80;background:#000a;display:none;align-items:flex-end;justify-content:center}
   #scEd .box{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:16px;display:flex;flex-direction:column;gap:10px}
-  #toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#151922f0;border:1px solid var(--line);color:var(--fg);padding:10px 16px;border-radius:12px;z-index:90;display:none;max-width:86%;text-align:center}
-  #banner{position:fixed;top:10px;left:10px;right:10px;z-index:95;background:#151922;border:1px solid var(--accent);border-radius:14px;padding:12px 14px;display:none;box-shadow:0 6px 24px #000a}
+  #toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#110f19f0;border:1px solid var(--line);color:var(--fg);padding:10px 16px;border-radius:12px;z-index:90;display:none;max-width:86%;text-align:center}
+  #banner{position:fixed;top:10px;left:10px;right:10px;z-index:95;background:#110f19;border:1px solid var(--accent);border-radius:14px;padding:12px 14px;display:none;box-shadow:0 6px 24px #000a}
   #banner b{display:block;color:var(--accent)}
   .row2{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
   .row2 small{color:var(--dim);display:block}`;
@@ -166,9 +166,9 @@
     location.href = `/api/screenshot?token=${encodeURIComponent(tok())}&mon=${info.current}&dl=1&save=1`;
     toast('Screenshot saved to this phone and to Pictures\\AOD on the PC');
   };
-  const recUi = on => { $('bRec').textContent = on ? '⏹' : '⏺'; $('bRec').style.color = on ? 'var(--bad)' : ''; $('bRec').classList.toggle('on', on); };
+  const recUi = on => { const b = $('bRec'); b.dataset.ic = on ? 'stop' : 'rec'; b.style.color = on ? 'var(--bad)' : ''; renderIcons(b.parentNode); };
   $('bRec').onclick = async () => {
-    const on = $('bRec').textContent === '⏺';
+    const on = $('bRec').dataset.ic === 'rec';
     if (on && jpegActive) return toast('Recording needs WebRTC video (Settings > Video)');
     const r = await post('/api/record', {on});
     recUi(r.on); toast(r.on ? 'Recording on the PC…' : 'Saving recording to Videos\\AOD on the PC');
@@ -200,7 +200,7 @@
   };
   window.renderFiles = (items, dir, searching) => {
     const box = $('flist');
-    box.innerHTML = items.map((it, i) => `<div data-i="${i}">${!it.dir && IMG.test(it.name) ? `<img loading="lazy" width="36" height="36" style="border-radius:6px;object-fit:cover" src="/api/thumb?token=${encodeURIComponent(tok())}&path=${encodeURIComponent(it.path)}">` : `<span style="width:36px;text-align:center">${it.dir ? '📁' : '📄'}</span>`}<span class="n">${esc(it.name)}${searching ? `<small class="dim" style="display:block;overflow:hidden;text-overflow:ellipsis">${esc(it.path)}</small>` : ''}</span><span class="dim">${it.dir ? '' : fmt(it.size)}</span><button data-m="${i}" style="min-height:34px;padding:2px 10px">⋯</button></div>`).join('') || '<div class="dim">Nothing here</div>';
+    box.innerHTML = items.map((it, i) => `<div data-i="${i}">${!it.dir && IMG.test(it.name) ? `<img loading="lazy" width="36" height="36" style="border-radius:6px;object-fit:cover" src="/api/thumb?token=${encodeURIComponent(tok())}&path=${encodeURIComponent(it.path)}">` : `<span style="width:36px;color:var(--soft)">${svg(it.dir ? 'files' : 'doc')}</span>`}<span class="n">${esc(it.name)}${searching ? `<small class="dim" style="display:block;overflow:hidden;text-overflow:ellipsis">${esc(it.path)}</small>` : ''}</span><span class="dim">${it.dir ? '' : fmt(it.size)}</span><button data-m="${i}" style="min-height:34px;padding:2px 10px">⋯</button></div>`).join('') || '<div class="dim">Nothing here</div>';
     box.onclick = async e => {
       const mb = e.target.closest('[data-m]'), row = e.target.closest('[data-i]'); if (!row) return;
       const it = items[(mb || row).dataset[mb ? 'm' : 'i']];
@@ -224,8 +224,8 @@
   };
 
   // ---------- stream a single window
-  const bWin = Object.assign(document.createElement('button'), {id: 'bWin', textContent: '🪟'});
-  $('bShot').before(bWin);
+  const bWin = Object.assign(document.createElement('button'), {id: 'bWin'});
+  bWin.dataset.ic = 'win'; $('bShot').before(bWin); renderIcons(bWin.parentNode);
   bWin.onclick = async () => {
     const wins = await (await api('/api/windows')).json();
     const c = await choose('Show on screen', [{hwnd: 0, label: '🖥 Whole screen'}, ...wins.map(w => ({hwnd: w.hwnd, label: w.title}))]);
@@ -244,7 +244,7 @@
   // ---------- safety: panic + activity
   const safe = document.createElement('div');
   safe.innerHTML = '<h3>Safety</h3><button class="bad" id="bPanic" style="width:100%;margin-bottom:8px">Panic: disconnect everyone and pause AOD</button><div class="list" id="actl"></div>';
-  $('devs').before(safe);
+  $('devs').previousElementSibling.before(safe);
   $('bPanic').onclick = async () => { if (confirm('Disconnect every phone and pause AOD? You will need to resume it on the PC.')) { await api('/api/panic', {method: 'POST'}).catch(() => {}); } };
   const loadAct = async () => {
     try {
@@ -258,7 +258,7 @@
   if (native && native.setRelay) {
     const w = document.createElement('div');
     w.innerHTML = '<h3>Wake from anywhere</h3><p class="dim" style="font-size:13px;margin:0 0 8px">Optional: address and key of the AOD wake relay running on an always-on device at home (see README).</p><input id="rlUrl" type="text" placeholder="http://100.x.y.z:8767" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px"><input id="rlKey" type="text" placeholder="Relay key" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px"><button id="rlSave">Save relay</button>';
-    $('devs').before(w);
+    $('devs').previousElementSibling.before(w);
     $('rlUrl').value = native.relayUrl(); $('rlKey').value = native.relayKey();
     $('rlSave').onclick = () => { native.setRelay($('rlUrl').value.trim(), $('rlKey').value.trim()); toast('Relay saved'); };
   }

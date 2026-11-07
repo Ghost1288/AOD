@@ -3,16 +3,16 @@
 <head><link rel="icon" href="/logo.png">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#07060c">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
 <title>AOD</title>
 <style>
-:root{--bg:#0b0d12;--panel:#151922;--line:#262c3a;--fg:#e8ecf4;--dim:#8b93a7;--accent:#4ade80;--bad:#f87171}
+:root{--bg:#07060c;--panel:#110f19;--line:#262038;--fg:#efeaf8;--dim:#9189a8;--accent:#a855f7;--bad:#f87171}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-height:42px}
-button.primary{background:var(--accent);color:#04210f;border:0;font-weight:700}
+button.primary{background:var(--accent);color:#ffffff;border:0;font-weight:700}
 button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--bad)}
 .dim{color:var(--dim)}
 #pair{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
@@ -25,7 +25,7 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
 #media{position:absolute;inset:0;transform-origin:0 0}
 #vid,#cv{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 #cv{display:none}
-#cur{position:absolute;width:14px;height:14px;margin:-3px 0 0 -3px;border:2px solid #fff;border-radius:50%;background:#4ade8099;pointer-events:none;box-shadow:0 0 0 1px #000}
+#cur{position:absolute;width:14px;height:14px;margin:-3px 0 0 -3px;border:2px solid #fff;border-radius:50%;background:#a855f799;pointer-events:none;box-shadow:0 0 0 1px #000}
 #status{position:absolute;top:8px;left:8px;font-size:12px;color:var(--dim);background:#000a;padding:3px 8px;border-radius:8px;pointer-events:none}
 #unhide{display:none;position:absolute;top:8px;right:8px;opacity:.6;padding:4px 10px;min-height:34px}
 .bar{display:flex;gap:6px;padding:6px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
@@ -57,11 +57,46 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
   .bar button{min-height:34px;padding:3px 10px}.bar{padding:3px}
   #nav{padding-bottom:0}
 }
+
+/* ---- AOD look: purple/silver on near-black, matching the logo ---- */
+:root{--accent:#a855f7;--accent2:#7c3aed;--soft:#d8b4fe;--glow:0 0 22px #a855f744}
+html,body{background:radial-gradient(1200px 500px at 50% -10%,#1b0f2e 0%,var(--bg) 60%) fixed,var(--bg)}
+button{border-radius:12px;transition:transform .08s,border-color .15s,background .15s;cursor:pointer}
+button:active{transform:scale(.96)}
+button.primary{background:linear-gradient(135deg,#9d4edd,#6d28d9);color:#fff;box-shadow:var(--glow)}
+button.on{background:#a855f720;border-color:var(--accent);color:var(--soft)}
+.bar,.sheet,#nav{background:#0e0b16cc;backdrop-filter:blur(10px)}
+svg.i{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;margin:0 auto}
+.bar button{display:flex;align-items:center;justify-content:center;gap:6px;min-width:44px}
+#nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;letter-spacing:.02em}
+#nav button small{font-size:11px}
+#nav button.active{color:var(--soft)}
+#nav button.active svg{filter:drop-shadow(0 0 7px #a855f7cc)}
+#nav button.active::after{content:"";position:absolute;top:0;width:28px;height:3px;border-radius:0 0 4px 4px;background:var(--accent);box-shadow:var(--glow)}
+#nav button{position:relative}
+#status{display:flex;align-items:center;gap:6px;background:#07060ccc;border:1px solid var(--line);backdrop-filter:blur(6px);color:var(--fg)}
+#status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.vh{display:flex;align-items:center;gap:10px;padding:12px 16px 4px;font-size:20px;font-weight:700;letter-spacing:.02em}
+.vh img{width:28px;height:28px;border-radius:8px;box-shadow:var(--glow)}
+.page{padding-top:8px}
+.page h3{color:var(--soft);opacity:.8}
+.stat,.sheet label,.list>div{border-color:var(--line)}
+.stat{background:linear-gradient(160deg,#16111f,#0f0c17);border-radius:14px}
+.grid button{min-height:56px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:linear-gradient(160deg,#16111f,#0f0c17)}
+.grid button:active{border-color:var(--accent)}
+input[type=range]{accent-color:var(--accent)}
+.bar2>i{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+#pair{background:radial-gradient(600px 420px at 50% 28%,#2a1347 0%,transparent 70%)}
+#pair img.logo{width:min(62vw,260px);border-radius:28px;box-shadow:0 0 60px #7c3aed66,0 0 0 1px #3b2a5c}
+#pair h1{display:none}
+#pin{border-radius:14px;border-color:#3b2a5c}
+#pin:focus{outline:none;border-color:var(--accent);box-shadow:var(--glow)}
 #kb{position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0}
 </style>
 </head>
 <body>
 <div id="pair">
+  <img class="logo" src="/logo.png" alt="AOD">
   <h1>AOD</h1>
   <p class="dim" style="margin:0">Enter the PIN from the AOD dashboard on your PC.<br>You'll then approve this phone on the PC.</p>
   <input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
@@ -99,14 +134,14 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
       <button data-k="f5">F5</button><button data-k="f11">F11</button>
     </div>
     <div class="bar">
-      <button id="bKb">⌨</button><button id="bMode">Touchpad</button><button id="bRight">Right-click</button>
-      <button id="bMon">Screen 1</button><button id="bSound">🔇</button><button id="bClip">Clipboard</button>
-      <button id="bShot">📷</button><button id="bRec">⏺</button><button id="bSet">⚙</button><button id="bHide">⛶</button>
+      <button id="bKb" data-ic="kb"></button><button id="bMode">Touchpad</button><button id="bRight">Right-click</button>
+      <button id="bMon">Screen 1</button><button id="bSound" data-ic="muted"></button><button id="bClip">Clipboard</button>
+      <button id="bShot" data-ic="cam"></button><button id="bRec" data-ic="rec"></button><button id="bSet" data-ic="set"></button><button id="bHide" data-ic="hide"></button>
     </div>
   </div>
 
   <!-- FILES -->
-  <div class="view" id="v-files"><div class="page">
+  <div class="view" id="v-files"><div class="vh"><img src="/logo.png" alt="">Files</div><div class="page">
     <div class="chips" id="roots"></div>
     <div class="dim" id="path" style="word-break:break-all;margin:6px 0"></div>
     <div style="display:flex;gap:8px;margin-bottom:8px"><input id="fSearch" type="search" placeholder="Search this folder…" style="flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px"><button id="fNew">＋📁</button></div>
@@ -116,19 +151,19 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
   </div></div>
 
   <!-- APPS -->
-  <div class="view" id="v-apps"><div class="page" id="apps-page"></div></div>
+  <div class="view" id="v-apps"><div class="vh"><img src="/logo.png" alt="">Apps</div><div class="page" id="apps-page"></div></div>
 
   <!-- TASKS -->
-  <div class="view" id="v-tasks"><div class="page">
+  <div class="view" id="v-tasks"><div class="vh"><img src="/logo.png" alt="">Tasks</div><div class="page">
     <div class="grid" id="stats"></div>
     <h3>Running apps (by memory)</h3>
     <div class="list" id="procs"></div>
   </div></div>
 
   <!-- POWER -->
-  <div class="view" id="v-power"><div class="page">
+  <div class="view" id="v-power"><div class="vh"><img src="/logo.png" alt="">Power & safety</div><div class="page">
     <h3>Media</h3>
-    <div class="grid"><button data-key="prev">⏮</button><button data-key="playpause">⏯</button><button data-key="next">⏭</button>
+    <div class="grid"><button data-key="prev" data-ic="prev"></button><button data-key="playpause" data-ic="play"></button><button data-key="next" data-ic="next"></button>
       <button data-key="voldown">Vol −</button><button data-key="mute">Mute</button><button data-key="volup">Vol +</button></div>
     <h3>Power</h3>
     <div class="grid"><button data-power="lock">Lock</button><button data-power="sleep">Sleep</button><button data-power="logoff">Sign out</button>
@@ -141,11 +176,11 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
   </div></div>
 
   <div id="nav">
-    <button class="active" data-view="screen">🖥<br><small>Screen</small></button>
-    <button data-view="files">📁<br><small>Files</small></button>
-    <button data-view="apps">🚀<br><small>Apps</small></button>
-    <button data-view="tasks">📊<br><small>Tasks</small></button>
-    <button data-view="power">⏻<br><small>Power</small></button>
+    <button class="active" data-view="screen" data-ic="screen"><small>Screen</small></button>
+    <button data-view="files" data-ic="files"><small>Files</small></button>
+    <button data-view="apps" data-ic="apps"><small>Apps</small></button>
+    <button data-view="tasks" data-ic="tasks"><small>Tasks</small></button>
+    <button data-view="power" data-ic="power"><small>Power</small></button>
   </div>
 </div>
 <textarea id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
@@ -159,6 +194,27 @@ const tok = () => store.get('aod_token');
 const api = (path, opt={}) => fetch(path, {...opt, headers:{...(opt.headers||{}), Authorization:'Bearer '+tok()}});
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = b => b>1e9?(b/1e9).toFixed(1)+' GB':b>1e6?(b/1e6).toFixed(0)+' MB':b>1e3?(b/1e3).toFixed(0)+' KB':b+' B';
+
+
+// ================= icons =================
+const IC={screen:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+ files:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+ apps:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+ tasks:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+ power:'<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>',
+ kb:'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+ hide:'<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+ set:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+ cam:'<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
+ rec:'<circle cx="12" cy="12" r="6"/>', stop:'<rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/>',
+ win:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
+ snd:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+ muted:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
+ doc:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+ prev:'<path d="M19 5v14L8 12z" fill="currentColor"/><path d="M5 5v14"/>', next:'<path d="M5 5v14l11-7z" fill="currentColor"/><path d="M19 5v14"/>', play:'<path d="M7 5v14l11-7z" fill="currentColor"/>'};
+const svg = n => `<svg class="i" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
+function renderIcons(root=document){ root.querySelectorAll('[data-ic]').forEach(b=>{ const l=b.querySelector('small'); b.innerHTML=svg(b.dataset.ic)+(l?l.outerHTML:''); }); }
+renderIcons();
 
 // ================= pairing =================
 function deviceName(){
@@ -239,7 +295,7 @@ async function startVideo(){
 }
 $('bVideo').onclick = e => { videoMode = {auto:'jpeg',jpeg:'webrtc',webrtc:'auto'}[videoMode]; store.set('aod_vmode',videoMode); e.target.textContent='Video: '+videoMode; startVideo(); };
 $('bVideo').textContent='Video: '+videoMode;
-$('bSound').onclick = e => { const v=$('vid'); v.muted=!v.muted; e.target.textContent=v.muted?'🔇':'🔊'; v.play().catch(()=>{}); };
+$('bSound').onclick = e => { const v=$('vid'); v.muted=!v.muted; const b=$('bSound'); b.dataset.ic=v.muted?'muted':'snd'; renderIcons(b.parentNode); v.play().catch(()=>{}); };
 
 // ================= toolbar =================
 const sheets=['settings','clipsheet'];

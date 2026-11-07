@@ -34,7 +34,7 @@ def run(url: str, hidden: bool = False) -> bool:
     try:
         import webview
         _window = webview.create_window("AOD", url, width=1020, height=800, min_size=(720, 560),
-                                        background_color="#0b0d12", hidden=hidden, text_select=True)
+                                        background_color="#07060c", hidden=hidden, text_select=True)
 
         def closing():
             _window.hide()          # keep running in the tray

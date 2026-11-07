@@ -7,17 +7,17 @@
   #game.on{display:block}
   #game .zone{position:absolute;top:0;bottom:0}
   #game .gb{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;
-    background:#0b0d12aa;border:2px solid #ffffff55;color:#fff;font:600 13px system-ui;text-align:center;
+    background:#07060caa;border:2px solid #ffffff55;color:#fff;font:600 13px system-ui;text-align:center;
     touch-action:none;transform:translate(0,0)}
-  #game .gb.sq{border-radius:14px}#game .gb.act{background:#4ade80cc;color:#04210f;border-color:#fff}
-  #game .stickbase{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid #fff6;background:#0b0d1255;display:none;pointer-events:none}
-  #game .stickknob{position:absolute;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:#4ade80aa;display:none;pointer-events:none}
+  #game .gb.sq{border-radius:14px}#game .gb.act{background:#a855f7cc;color:#ffffff;border-color:#fff}
+  #game .stickbase{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid #fff6;background:#07060c55;display:none;pointer-events:none}
+  #game .stickknob{position:absolute;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:#a855f7aa;display:none;pointer-events:none}
   #game .top{position:absolute;top:6px;left:6px;display:flex;gap:6px;z-index:3}
   #game .top button{opacity:.7;min-height:36px;padding:4px 12px}
   #game .hint{position:absolute;left:0;right:0;top:50px;text-align:center;color:#ffffff88;font-size:12px;pointer-events:none}
-  #gpanel{position:absolute;top:48px;left:6px;z-index:4;background:#151922ee;border:1px solid #262c3a;border-radius:12px;padding:12px;display:none;flex-direction:column;gap:10px;min-width:250px;color:#e8ecf4;font-size:14px}
-  #gpanel label{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#8b93a7}
-  #gpanel select{background:#0b0d12;color:#e8ecf4;border:1px solid #262c3a;border-radius:8px;padding:6px}
+  #gpanel{position:absolute;top:48px;left:6px;z-index:4;background:#110f19ee;border:1px solid #262038;border-radius:12px;padding:12px;display:none;flex-direction:column;gap:10px;min-width:250px;color:#efeaf8;font-size:14px}
+  #gpanel label{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#9189a8}
+  #gpanel select{background:#07060c;color:#efeaf8;border:1px solid #262038;border-radius:8px;padding:6px}
   `;
   document.head.appendChild(css);
 
