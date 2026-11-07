@@ -174,4 +174,92 @@
     recUi(r.on); toast(r.on ? 'Recording on the PC…' : 'Saving recording to Videos\\AOD on the PC');
   };
   api('/api/record').then(r => r.json()).then(r => recUi(r.on)).catch(() => {});
+
+  // ---------- small modal list picker
+  const pick = document.createElement('div');
+  pick.id = 'pick';
+  pick.style.cssText = 'position:fixed;inset:0;z-index:85;background:#000a;display:none;align-items:flex-end;justify-content:center';
+  pick.innerHTML = '<div style="background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:560px;max-height:75vh;display:flex;flex-direction:column"><div id="pickT" style="padding:14px 16px;font-weight:700"></div><div id="pickL" style="overflow-y:auto;padding:0 8px 8px"></div><button id="pickX" style="margin:8px;border-radius:12px">Cancel</button></div>';
+  document.body.appendChild(pick);
+  const choose = (title, opts) => new Promise(res => {
+    $('pickT').textContent = title;
+    $('pickL').innerHTML = opts.map((o, i) => `<button data-i="${i}" style="display:block;width:100%;text-align:left;margin:4px 0;white-space:normal;word-break:break-word${o.bad ? ';color:var(--bad)' : ''}">${esc(o.label)}</button>`).join('') || '<p class="dim" style="padding:8px">Nothing here.</p>';
+    pick.style.display = 'flex';
+    const done = v => { pick.style.display = 'none'; res(v); };
+    $('pickX').onclick = () => done(null);
+    pick.onclick = e => { if (e.target === pick) done(null); };
+    $('pickL').onclick = e => { const b = e.target.closest('[data-i]'); if (b) done(opts[+b.dataset.i]); };
+  });
+
+  // ---------- files: thumbnails, actions, search, new folder
+  const IMG = /\.(jpe?g|png|gif|bmp|webp)$/i;
+  const dl = it => { location.href = '/api/download?token=' + encodeURIComponent(tok()) + '&path=' + encodeURIComponent(it.path); };
+  const fsop = async (op, path, name) => {
+    const r = await api('/api/fs', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({op, path, name})});
+    const j = await r.json(); if (!r.ok) toast(j.error || 'Failed'); return r.ok;
+  };
+  window.renderFiles = (items, dir, searching) => {
+    const box = $('flist');
+    box.innerHTML = items.map((it, i) => `<div data-i="${i}">${!it.dir && IMG.test(it.name) ? `<img loading="lazy" width="36" height="36" style="border-radius:6px;object-fit:cover" src="/api/thumb?token=${encodeURIComponent(tok())}&path=${encodeURIComponent(it.path)}">` : `<span style="width:36px;text-align:center">${it.dir ? '📁' : '📄'}</span>`}<span class="n">${esc(it.name)}${searching ? `<small class="dim" style="display:block;overflow:hidden;text-overflow:ellipsis">${esc(it.path)}</small>` : ''}</span><span class="dim">${it.dir ? '' : fmt(it.size)}</span><button data-m="${i}" style="min-height:34px;padding:2px 10px">⋯</button></div>`).join('') || '<div class="dim">Nothing here</div>';
+    box.onclick = async e => {
+      const mb = e.target.closest('[data-m]'), row = e.target.closest('[data-i]'); if (!row) return;
+      const it = items[(mb || row).dataset[mb ? 'm' : 'i']];
+      if (!mb) { if (it.dir) { $('fSearch').value = ''; openDir(it.path); } else dl(it); return; }
+      const a = await choose(it.name, [{k: 'dl', label: it.dir ? 'Open' : 'Download to this phone'}, {k: 'rn', label: 'Rename'}, {k: 'rm', label: 'Move to Recycle Bin', bad: true}]);
+      if (!a) return;
+      if (a.k === 'dl') return it.dir ? openDir(it.path) : dl(it);
+      if (a.k === 'rn') { const n = prompt('New name', it.name); if (n && n !== it.name && await fsop('rename', it.path, n)) openDir(curPath); }
+      if (a.k === 'rm' && confirm('Move "' + it.name + '" to the Recycle Bin on the PC?') && await fsop('delete', it.path)) { toast('Moved to Recycle Bin'); openDir(curPath); }
+    };
+  };
+  $('fNew').onclick = async () => { const n = prompt('New folder name'); if (n && await fsop('mkdir', curPath, n)) openDir(curPath); };
+  let st;
+  $('fSearch').oninput = e => {
+    clearTimeout(st); const q = e.target.value.trim();
+    if (!q) { openDir(curPath); return; }
+    st = setTimeout(async () => {
+      const r = await api('/api/fs/search?q=' + encodeURIComponent(q) + '&dir=' + encodeURIComponent(curPath));
+      window.renderFiles(await r.json(), curPath, true);
+    }, 450);
+  };
+
+  // ---------- stream a single window
+  const bWin = Object.assign(document.createElement('button'), {id: 'bWin', textContent: '🪟'});
+  $('bShot').before(bWin);
+  bWin.onclick = async () => {
+    const wins = await (await api('/api/windows')).json();
+    const c = await choose('Show on screen', [{hwnd: 0, label: '🖥 Whole screen'}, ...wins.map(w => ({hwnd: w.hwnd, label: w.title}))]);
+    if (c) { send({t: 'window', hwnd: c.hwnd}); zoom = 1; panX = panY = 0; applyZoom(); toast(c.hwnd ? 'Showing only that window' : 'Showing the whole screen'); }
+  };
+
+  // ---------- clipboard history
+  const hb = Object.assign(document.createElement('button'), {textContent: 'History'});
+  $('cPaste').after(hb);
+  hb.onclick = async () => {
+    const h = await (await api('/api/clips')).json();
+    const c = await choose('Recent clipboard', h.map(t => ({t, label: t.length > 140 ? t.slice(0, 140) + '…' : t})));
+    if (c) { $('cliptext').value = c.t; send({t: 'clip_set', s: c.t}); toast('Copied to the PC clipboard'); }
+  };
+
+  // ---------- safety: panic + activity
+  const safe = document.createElement('div');
+  safe.innerHTML = '<h3>Safety</h3><button class="bad" id="bPanic" style="width:100%;margin-bottom:8px">Panic: disconnect everyone and pause AOD</button><div class="list" id="actl"></div>';
+  $('devs').before(safe);
+  $('bPanic').onclick = async () => { if (confirm('Disconnect every phone and pause AOD? You will need to resume it on the PC.')) { await api('/api/panic', {method: 'POST'}).catch(() => {}); } };
+  const loadAct = async () => {
+    try {
+      const a = await (await api('/api/activity')).json();
+      $('actl').innerHTML = a.slice(0, 25).map(x => `<div><span class="n">${esc(x.text)}</span><span class="dim" style="font-size:12px">${new Date(x.ts * 1000).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'})}</span></div>`).join('');
+    } catch {}
+  };
+  document.querySelector('#nav [data-view="power"]').addEventListener('click', loadAct);
+
+  // ---------- wake relay (Android app only)
+  if (native && native.setRelay) {
+    const w = document.createElement('div');
+    w.innerHTML = '<h3>Wake from anywhere</h3><p class="dim" style="font-size:13px;margin:0 0 8px">Optional: address and key of the AOD wake relay running on an always-on device at home (see README).</p><input id="rlUrl" type="text" placeholder="http://100.x.y.z:8767" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px"><input id="rlKey" type="text" placeholder="Relay key" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px"><button id="rlSave">Save relay</button>';
+    $('devs').before(w);
+    $('rlUrl').value = native.relayUrl(); $('rlKey').value = native.relayKey();
+    $('rlSave').onclick = () => { native.setRelay($('rlUrl').value.trim(), $('rlKey').value.trim()); toast('Relay saved'); };
+  }
 })();

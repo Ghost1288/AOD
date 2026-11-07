@@ -54,11 +54,15 @@ class Events:
         """Long-poll. after < 0 means 'just tell me the newest id'."""
         if after < 0:
             return [], self.last_id
-        if not any(e["id"] > after for e in self.items):
+        end = time.monotonic() + timeout
+        while not any(e["id"] > after for e in self.items):
+            left = end - time.monotonic()
+            if left <= 0:
+                break
             fut = asyncio.get_running_loop().create_future()
             self.waiters.append(fut)
             try:
-                await asyncio.wait_for(fut, timeout)
+                await asyncio.wait_for(fut, left)
             except asyncio.TimeoutError:
                 pass
             finally:

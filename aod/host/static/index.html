@@ -109,6 +109,7 @@ button.on{border-color:var(--accent);color:var(--accent)}button.bad{color:var(--
   <div class="view" id="v-files"><div class="page">
     <div class="chips" id="roots"></div>
     <div class="dim" id="path" style="word-break:break-all;margin:6px 0"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px"><input id="fSearch" type="search" placeholder="Search this folder…" style="flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px"><button id="fNew">＋📁</button></div>
     <div style="display:flex;gap:8px;margin-bottom:8px"><button id="fUp">⬆ Up</button><button class="primary" id="fUpload">Upload here…</button><input type="file" id="fInput" multiple hidden></div>
     <div id="fProg" class="dim"></div>
     <div class="list" id="flist"></div>
@@ -354,9 +355,7 @@ async function openDir(p){
   const r=await api('/api/files?path='+encodeURIComponent(p)); const j=await r.json();
   if(!r.ok){ alert(j.error||'Cannot open'); return; }
   curPath=j.path; $('path').textContent=j.path; $('fUp').disabled=!j.parent; $('fUp').onclick=()=>j.parent&&openDir(j.parent);
-  $('flist').innerHTML=j.items.map((it,i)=>`<div data-i="${i}"><span>${it.dir?'📁':'📄'}</span><span class="n">${esc(it.name)}</span><span class="dim">${it.dir?'':fmt(it.size)}</span></div>`).join('')||'<div class="dim">Empty folder</div>';
-  $('flist').onclick=e=>{ const row=e.target.closest('[data-i]'); if(!row) return; const it=j.items[row.dataset.i]; const full=j.path.replace(/[\\/]+$/,'')+(j.path.includes('\\')?'\\':'/')+it.name;
-    if(it.dir) openDir(full); else if(confirm('Download '+it.name+'?')) location.href='/api/download?token='+encodeURIComponent(tok())+'&path='+encodeURIComponent(full); };
+  renderFiles(j.items.map(it => ({...it, path: j.path.replace(/[\\/]+$/,'')+(j.path.includes('\\')?'\\':'/')+it.name})), j.path);
 }
 $('fUpload').onclick=()=>$('fInput').click();
 $('fInput').onchange=()=>{ const files=$('fInput').files; if(!files.length) return;

@@ -10,12 +10,32 @@ BTN = {0: "A", 1: "B", 2: "X", 3: "Y", 4: "LEFT_SHOULDER", 5: "RIGHT_SHOULDER", 
        16: "GUIDE"}
 
 
+_driver = {"t": 0.0, "ok": True}
+
+
+def _driver_present() -> bool:
+    """Is the ViGEmBus driver installed? (Windows service query, cached for 30 s.)"""
+    import subprocess
+    import sys
+    import time
+    if sys.platform != "win32":
+        return True
+    if time.time() - _driver["t"] > 30:
+        try:
+            r = subprocess.run(["sc", "query", "ViGEmBus"], capture_output=True, timeout=5, creationflags=0x08000000)
+            _driver["ok"] = r.returncode == 0
+        except Exception:
+            _driver["ok"] = True
+        _driver["t"] = time.time()
+    return _driver["ok"]
+
+
 def importable() -> bool:
     try:
         import vgamepad  # noqa: F401
-        return True
     except Exception:
         return False
+    return _driver_present()
 
 
 def _c(v, lo=-1.0, hi=1.0) -> float:

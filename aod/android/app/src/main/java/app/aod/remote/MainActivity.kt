@@ -255,6 +255,9 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun saveHost(name: String, mac: String) { prefs.edit().putString("pcname", name).putString("mac", mac).apply() }
+        @JavascriptInterface fun relayUrl(): String = prefs.getString("relay_url", "") ?: ""
+        @JavascriptInterface fun relayKey(): String = prefs.getString("relay_key", "") ?: ""
+        @JavascriptInterface fun setRelay(url: String, key: String) { prefs.edit().putString("relay_url", url).putString("relay_key", key).apply() }
         @JavascriptInterface fun saveToken(t: String) { prefs.edit().putString("token", t).apply() }
         @JavascriptInterface fun notificationsEnabled(): Boolean = prefs.getBoolean("notify", false)
         @JavascriptInterface fun setNotifications(on: Boolean) {
@@ -304,6 +307,18 @@ class MainActivity : Activity() {
                 val targets = mutableListOf("255.255.255.255")
                 host?.substringBeforeLast(".")?.let { targets += "$it.255" }
                 for (t in targets) for (p in intArrayOf(9, 7)) s.send(DatagramPacket(pkt, pkt.size, InetAddress.getByName(t), p))
+            }
+        } catch (_: Exception) {}
+        // Away from home: ask the wake relay (a Raspberry Pi / always-on PC at home) to send the packet.
+        try {
+            val url = prefs.getString("relay_url", "") ?: ""
+            val key = prefs.getString("relay_key", "") ?: ""
+            if (url.isNotBlank()) {
+                val c = URL(url.trimEnd('/') + "/wake?mac=" + java.net.URLEncoder.encode(mac, "UTF-8") +
+                    "&key=" + java.net.URLEncoder.encode(key, "UTF-8")).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 5000; c.readTimeout = 5000
+                c.responseCode
+                c.disconnect()
             }
         } catch (_: Exception) {}
     }

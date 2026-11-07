@@ -13,6 +13,14 @@ concurrency:
 env:
   BUILD: ${{ github.run_number }}
 jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pytest psutil pillow cryptography
+      - run: python -m pytest -q aod/tests
   android:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -51,6 +59,23 @@ jobs:
             if (Wait-Job $job -Timeout 150) { Receive-Job $job | Select-Object -Last 3 | Write-Host } else { Stop-Job $job; Write-Host "optional $p timed out" }
           }
           pip show pywebview | Select-String "Version"
+          $global:LASTEXITCODE = 0
+      - name: Install vgamepad (its installer hangs on CI, so copy the package in by hand)
+        working-directory: aod/host
+        continue-on-error: true
+        timeout-minutes: 4
+        run: |
+          $j = Invoke-RestMethod https://pypi.org/pypi/vgamepad/json
+          $u = ($j.urls | Where-Object packagetype -eq 'bdist_wheel' | Select-Object -First 1).url
+          if ($u) { pip install --no-deps $u } else {
+            $u = ($j.urls | Where-Object packagetype -eq 'sdist' | Select-Object -First 1).url
+            Invoke-WebRequest $u -OutFile vg.tgz; New-Item -ItemType Directory vg | Out-Null; tar xzf vg.tgz -C vg
+            $src = Get-ChildItem vg -Recurse -Directory -Filter vgamepad | Where-Object { Test-Path "$($_.FullName)\__init__.py" } | Select-Object -First 1
+            $site = python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])"
+            Copy-Item $src.FullName "$site\vgamepad" -Recurse -Force
+          }
+          pip install pyyaml
+          python -c "import vgamepad; print('vgamepad OK', vgamepad.__file__)"
           $global:LASTEXITCODE = 0
       - name: Build AOD.exe
         working-directory: aod/host

@@ -90,3 +90,6 @@ GitHub Release (with `version.json`). The repo must be **public** so the apps ca
 - **Screenshots and recording**: 📷 saves a full-resolution screenshot to your phone and to `Pictures\AOD` on the PC; ⏺ records the stream to `Videos\AOD` on the PC.
 - **Tablet and landscape layouts**: side navigation rail on large screens, compact bars in landscape.
 - **Wake-on-LAN**: dashboard > "Set up Wake-on-LAN" prepares Windows; the phone app's "Wake PC" button on the offline screen then switches the PC on from home Wi-Fi.
+- **Files**: thumbnails, search, rename, new folder, delete (to the Recycle Bin).
+- **Single window streaming** (🪟 on the Screen tab), **clipboard history**, **activity log**, **panic button** (phone Power tab, dashboard, tray), alerts on your phone when someone tries to pair.
+- **Wake from anywhere**: run `relay/aod_relay.py --key SECRET` on an always-on device at home (Raspberry Pi, NAS, old PC; with Tailscale on it), then enter its address and key in the phone app (Power tab > Wake from anywhere).

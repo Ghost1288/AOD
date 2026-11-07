@@ -55,16 +55,21 @@ class Capturer:
         self.last.clear()
         self.dx_failed = False
 
-    def _grab(self, idx):
+    def _grab(self, idx, rect=None):
         if aod_desktop.sync():
             self._reset()
         s = self._sct()
+        if rect:
+            return s.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
         return s.grab(s.monitors[max(1, min(idx, len(s.monitors) - 1))])
 
-    def _np(self, idx):
+    def _np(self, idx, rect=None):
         """Latest frame as a BGRA numpy array (dxcam when available, else mss)."""
         if aod_desktop.sync():
             self._reset()
+        if rect:
+            shot = self._grab(idx, rect)
+            return np.frombuffer(shot.bgra, np.uint8).reshape(shot.height, shot.width, 4)
         if DX_OK and not self.dx_failed:
             try:
                 cam = self.cams.get(idx)
@@ -82,22 +87,22 @@ class Capturer:
         shot = self._grab(idx)
         return np.frombuffer(shot.bgra, np.uint8).reshape(shot.height, shot.width, 4)
 
-    async def grab_np(self, idx):
-        return await asyncio.get_running_loop().run_in_executor(self.ex, self._np, idx)
+    async def grab_np(self, idx, rect=None):
+        return await asyncio.get_running_loop().run_in_executor(self.ex, self._np, idx, rect)
 
     def _monitors(self):
         if aod_desktop.sync():
             self._reset()
         return [dict(m) for m in self._sct().monitors[1:]]
 
-    async def grab(self, idx):
-        return await asyncio.get_running_loop().run_in_executor(self.ex, self._grab, idx)
+    async def grab(self, idx, rect=None):
+        return await asyncio.get_running_loop().run_in_executor(self.ex, self._grab, idx, rect)
 
     async def monitors(self):
         return await asyncio.get_running_loop().run_in_executor(self.ex, self._monitors)
 
-    async def jpeg(self, idx, scale, quality) -> bytes:
-        shot = await self.grab(idx)
+    async def jpeg(self, idx, scale, quality, rect=None) -> bytes:
+        shot = await self.grab(idx, rect)
 
         def enc():
             img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
@@ -205,7 +210,8 @@ class ScreenTrack(MediaStreamTrack):
         if wait > 0:
             await asyncio.sleep(wait)
         self.last = time.monotonic()
-        arr = await self.cap.grab_np(self.state["mon"])
+        rect = aod_desktop.window_rect(self.state.get("win")) if self.state.get("win") else None
+        arr = await self.cap.grab_np(self.state["mon"], rect)
         h, w = arr.shape[:2]
         frame = VideoFrame.from_ndarray(arr, format="bgra")
         scale = min(self.state.get("rtc_scale", 1.0), self.MAX_W / w)

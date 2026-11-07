@@ -203,6 +203,8 @@ class State:
         self.failed[ip] = (c, time.time() + LOCKOUT)
 
     def pin_ok(self, ip: str, pin: str) -> bool:
+        if self.locked(ip):
+            return False
         ok = secrets.compare_digest(str(pin), self.current_pin())
         if not ok:
             self.fail(ip)

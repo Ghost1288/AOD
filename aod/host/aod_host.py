@@ -50,6 +50,8 @@ devices = sec.Devices()
 state = sec.State()
 capturer = aod_rtc.Capturer()
 sessions = set()          # live websockets (for the kill switch)
+ACTIVITY = DATA_DIR / "activity.jsonl"
+clip_hist = []            # last copied texts (memory only, cleared by panic)
 updater = aod_update.Updater(lambda: bool(sessions))
 events = aod_events.Events()
 LOOP = None
@@ -86,20 +88,63 @@ def loopback_only(request: web.Request) -> None:
         raise web.HTTPForbidden()
 
 
+# ------------------------------------------------------------------ activity log, clipboard history
+def log_activity(kind: str, text: str, request=None, who: str = "") -> None:
+    try:
+        ent = {"ts": int(time.time()), "kind": kind, "text": text[:200], "ip": getattr(request, "remote", "") or "", "who": who}
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        if ACTIVITY.exists() and ACTIVITY.stat().st_size > 512_000:
+            lines = ACTIVITY.read_text(errors="ignore").splitlines()[-1000:]
+            ACTIVITY.write_text("\n".join(lines) + "\n")
+        with open(ACTIVITY, "a") as f:
+            f.write(json.dumps(ent) + "\n")
+    except Exception as e:
+        print("activity log:", e)
+
+
+def recent_activity(n: int = 100) -> list:
+    try:
+        lines = ACTIVITY.read_text(errors="ignore").splitlines()[-n:]
+        return [json.loads(x) for x in reversed(lines)]
+    except Exception:
+        return []
+
+
+def remember_clip(s: str) -> None:
+    s = s.strip()
+    if not s or len(s) > 5000:
+        return
+    if s in clip_hist:
+        clip_hist.remove(s)
+    clip_hist.insert(0, s)
+    del clip_hist[20:]
+
+
+def dev_name(did: str) -> str:
+    return next((d["name"] for d in devices.public_list() if d["id"] == did), "device")
+
+
 # ------------------------------------------------------------------ pairing
 async def pair(request: web.Request) -> web.Response:
     ip = request.remote
     if not state.pairing_allowed or not state.enabled:
         return web.json_response({"error": "pairing is turned off on the PC"}, status=403)
     if state.locked(ip):
+        log_activity("pair", "blocked: too many wrong PINs", request)
         return web.json_response({"error": "too many wrong PINs, try again in a few minutes"}, status=429)
     data = await request.json()
     if not state.pin_ok(ip, data.get("pin", "")):
+        log_activity("pair", "wrong PIN", request)
+        if state.locked(ip):
+            events.push("AOD security alert", f"Several wrong PINs from {ip}. Pairing from there is blocked for a while.")
         return web.json_response({"error": "wrong PIN"}, status=401)
     name = str(data.get("name") or "Phone")[:60]
     loop = asyncio.get_running_loop()
+    events.push("New device wants to pair", f"{name} ({ip}). Approve or deny on the PC.")
     if not await loop.run_in_executor(None, sec.ask_approval, state, name, ip):
+        log_activity("pair", f"denied: {name}", request)
         return web.json_response({"error": "denied on the PC"}, status=403)
+    log_activity("pair", f"approved: {name}", request)
     token = devices.add(name, ip)
     state.rotate_pin()
     return web.json_response({"token": token})
@@ -134,42 +179,59 @@ def apply_input(msg: dict, mon: dict) -> None:
 
 # ------------------------------------------------------------------ websocket
 async def ws_handler(request: web.Request) -> web.WebSocketResponse:
-    authed(request)
+    did = authed(request)
+    who = dev_name(did)
+    log_activity("connect", f"{who} connected", request, who)
     ws = web.WebSocketResponse(max_msg_size=1 << 20, heartbeat=20)
     await ws.prepare(request)
     sessions.add(ws)
     loop = asyncio.get_running_loop()
 
-    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0, "game": False}
+    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0, "game": False, "win": 0}
     gi = aod_gameinput.GameInput()
     mons = await capturer.monitors()
     tasks, pcs = {}, []
     last_clip = {"v": await loop.run_in_executor(None, feat.clip_get)}
 
+    def win_rect():
+        if not st["win"]:
+            return None
+        r = aod_desktop.window_rect(st["win"])
+        if r is None:
+            st["win"] = 0                  # window closed or minimised: back to the whole screen
+        return r
+
     def mon_geom():
+        r = win_rect()
+        if r:
+            return {"left": r[0], "top": r[1], "width": r[2], "height": r[3]}
         return mons[min(st["mon"], len(mons)) - 1]
 
     async def send_info():
         m = mon_geom()
         await ws.send_json({"t": "info", "monitors": len(mons), "current": st["mon"],
-                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK,
+                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK, "win": st["win"],
                             "pad": aod_gamepad.importable(), "version": APP_VERSION})
 
     async def jpeg_loop():
         while not ws.closed:
             t0 = time.monotonic()
-            data = await capturer.jpeg(st["mon"], st["scale"], int(st["quality"]))
+            data = await capturer.jpeg(st["mon"], st["scale"], int(st["quality"]), win_rect())
             await ws.send_bytes(data)
             await asyncio.sleep(max(0, 1 / st["fps"] - (time.monotonic() - t0)))
 
     async def cursor_loop():
         last = None
+        last_win = 0
         while not ws.closed:
             if st["game"]:
                 await asyncio.sleep(0.25)
                 continue
             aod_desktop.sync()
             m = mon_geom()
+            if st["win"] != last_win:
+                last_win = st["win"]
+                await send_info()
             x, y = mouse.position
             cur = (round((x - m["left"]) / m["width"], 4), round((y - m["top"]) / m["height"], 4))
             if cur != last:
@@ -183,6 +245,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             v = await loop.run_in_executor(None, feat.clip_get)
             if v != last_clip["v"] and len(v) < 200_000:
                 last_clip["v"] = v
+                remember_clip(v)
                 await ws.send_json({"t": "clip", "s": v})
 
     async def rtc_closed():
@@ -210,6 +273,11 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             elif t == "monitor":
                 mons = await capturer.monitors()
                 st["mon"] = min(max(1, int(msg["i"])), len(mons))
+                await send_info()
+            elif t == "window":
+                st["win"] = int(msg.get("hwnd") or 0)
+                if st["win"] and not aod_desktop.window_rect(st["win"]):
+                    st["win"] = 0
                 await send_info()
             elif t == "jpeg":
                 if "jpeg" not in tasks:
@@ -250,6 +318,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             elif t == "clip_set":
                 s = str(msg.get("s", ""))[:200_000]
                 last_clip["v"] = s
+                remember_clip(s)
                 await loop.run_in_executor(None, feat.clip_set, s)
             elif t == "clip_get":
                 await ws.send_json({"t": "clip", "s": await loop.run_in_executor(None, feat.clip_get)})
@@ -262,6 +331,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         gi.release_all()
         aod_gamepad.pad.release()
         sessions.discard(ws)
+        log_activity("disconnect", f"{who} disconnected", request, who)
         schedule_autolock()
         for task in tasks.values():
             if task:
@@ -317,6 +387,35 @@ async def api_record(request):
     return web.json_response({"on": r.on, "path": str(r.path) if r.path else None})
 
 
+async def api_activity(request):
+    authed(request)
+    return web.json_response(recent_activity())
+
+
+async def api_clips(request):
+    authed(request)
+    return web.json_response(clip_hist)
+
+
+async def api_panic(request):
+    did = authed(request)
+    log_activity("panic", f"panic pressed on {dev_name(did)}", request)
+    do_panic()
+    return web.json_response({"ok": True})
+
+
+def do_panic() -> None:
+    """Disconnect everyone, refuse new pairing, wipe clipboard history. Resume from the PC."""
+    state.pairing_allowed = False
+    clip_hist.clear()
+    set_enabled(False)
+
+
+async def api_windows(request):
+    authed(request)
+    return web.json_response(await asyncio.get_running_loop().run_in_executor(None, aod_desktop.list_windows))
+
+
 async def api_procs(request):
     authed(request)
     return web.json_response(await asyncio.get_running_loop().run_in_executor(None, feat.processes))
@@ -345,6 +444,33 @@ async def api_files(request):
         return web.json_response(feat.listdir(request.query.get("path") or str(USER_HOME)))
     except OSError as e:
         return web.json_response({"error": str(e)}, status=400)
+
+
+async def api_fs(request):
+    authed(request)
+    b = await request.json()
+    try:
+        r = await asyncio.get_running_loop().run_in_executor(
+            None, feat.fs_op, str(b.get("op")), str(b.get("path", "")), str(b.get("name", "")))
+        log_activity("files", f'{b.get("op")} {b.get("path", "")}', request)
+        return web.json_response(r)
+    except (OSError, ValueError) as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+
+async def api_fs_search(request):
+    authed(request)
+    res = await asyncio.get_running_loop().run_in_executor(
+        None, feat.search_files, request.query.get("dir") or str(USER_HOME), request.query.get("q", ""))
+    return web.json_response(res)
+
+
+async def api_thumb(request):
+    authed(request)
+    data = await asyncio.get_running_loop().run_in_executor(None, feat.thumbnail, request.query.get("path", ""))
+    if not data:
+        raise web.HTTPNotFound()
+    return web.Response(body=data, content_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
 
 
 async def api_download(request):
@@ -497,7 +623,7 @@ async def admin_state(request):
     return web.json_response({
         "url": base, "pin": pin, "pin_expires": int(sec.PIN_LIFETIME - (time.time() - state.pin_time)),
         "enabled": state.enabled, "pairing_allowed": state.pairing_allowed,
-        "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error,
+        "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error, "activity": recent_activity(15),
         "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
         "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable(),
         "settings": settings_payload()})
@@ -550,6 +676,11 @@ async def admin_action(request):
     elif a == "setting":
         k, v = request.query.get("k", ""), request.query.get("v", "")
         aod_settings.update({k: (v == "1") if k in ("autolock", "notify_downloads") else v})
+    elif a == "panic":
+        log_activity("panic", "panic pressed on the PC")
+        do_panic()
+    elif a == "vigem":
+        threading.Thread(target=feat.install_vigem, daemon=True).start()
     elif a == "wol":
         threading.Thread(target=feat.enable_wol, daemon=True).start()
     elif a == "service_install":
@@ -595,6 +726,13 @@ def make_app() -> web.Application:
     r.add_get("/api/files", api_files)
     r.add_get("/api/download", api_download)
     r.add_get("/api/screenshot", api_screenshot)
+    r.add_get("/api/windows", api_windows)
+    r.add_get("/api/activity", api_activity)
+    r.add_get("/api/clips", api_clips)
+    r.add_post("/api/panic", api_panic)
+    r.add_post("/api/fs", api_fs)
+    r.add_get("/api/fs/search", api_fs_search)
+    r.add_get("/api/thumb", api_thumb)
     r.add_get("/api/record", api_record)
     r.add_post("/api/record", api_record)
     r.add_post("/api/upload", api_upload)
@@ -727,7 +865,7 @@ def main() -> None:
     except Exception:
         pass
     threading.Thread(target=server_thread, daemon=True).start()
-    aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater, open_ui=show_ui)
+    aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater, open_ui=show_ui, panic=do_panic)
     updater.start()
     events.start_download_watcher()
     hidden = "--hidden" in argv

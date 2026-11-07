@@ -61,7 +61,7 @@ def stop() -> None:
         pass
 
 
-def start(admin_url, state, devices, set_enabled, updater, open_ui=None):
+def start(admin_url, state, devices, set_enabled, updater, open_ui=None, panic=None):
     global _icon
     try:
         import pystray
@@ -121,6 +121,7 @@ def start(admin_url, state, devices, set_enabled, updater, open_ui=None):
         pystray.MenuItem("Check for updates now", check_updates),
         pystray.MenuItem("Notify when checking for updates", toggle_notify, checked=lambda i: updater.notify_on),
         pystray.MenuItem("Unpair all devices", revoke_all),
+        pystray.MenuItem("PANIC: disconnect everyone and pause", lambda i, it: panic and panic(), visible=panic is not None),
         pystray.MenuItem("Run as a service (starts at boot, works on lock screen)...", install_service,
                          visible=lambda i: sys.platform == "win32" and os.environ.get("AOD_SERVICE") != "1"),
         pystray.MenuItem("Stop running as a service...", remove_service,
