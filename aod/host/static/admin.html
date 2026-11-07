@@ -1,68 +1,129 @@
 <!doctype html>
 <html lang="en"><head><link rel="icon" href="/logo.png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AOD dashboard</title>
+<title>AOD</title>
 <style>
-:root{--bg:#07060c;--panel:#110f19;--line:#262038;--fg:#efeaf8;--dim:#9189a8;--accent:#a855f7;--bad:#f87171}
-body{margin:0;background:radial-gradient(1000px 420px at 50% -8%,#1b0f2e,var(--bg) 60%) fixed,var(--bg);color:var(--fg);font:15px system-ui,sans-serif;padding:24px;max-width:860px;margin:auto}
-h1{letter-spacing:.15em;margin:0 0 4px}h2{font-size:15px;color:var(--dim);font-weight:600;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.06em}
-.row{display:flex;gap:16px;flex-wrap:wrap}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
-.qr{text-align:center}.qr img{width:200px;height:200px;border-radius:8px;background:#fff}.qr p{margin:8px 0 0;color:var(--dim);font-size:13px;max-width:200px}
-.pin{font-size:34px;letter-spacing:.35em;font-weight:700;color:var(--accent)}
-button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
-button:hover{border-color:var(--accent)}button.bad:hover{border-color:var(--bad);color:var(--bad)}
-table{width:100%;border-collapse:collapse}td{padding:10px 6px;border-top:1px solid var(--line)}.dim{color:var(--dim)}
-button.primary,#updnow{background:linear-gradient(135deg,#9d4edd,#6d28d9);border:0;color:#fff}
-.tag{padding:2px 8px;border-radius:99px;font-size:12px;background:#a855f722;color:var(--accent)}.tag.off{background:#f8717122;color:var(--bad)}
-code{background:#000;padding:2px 6px;border-radius:6px;word-break:break-all}
+:root{--top:#171a21;--bg:#1b2838;--bg2:#16202d;--panel:#202d3d;--row:#243246;--line:#2f4157;--fg:#c7d5e0;--hi:#fff;--dim:#8f98a0;--accent:#a855f7;--soft:#d8b4fe;--bad:#f87171;--ok:#5ba32b}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--fg);font:14px "Motiva Sans",Arial,system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.title{background:var(--top);display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:13px;color:var(--dim);user-select:none}
+.title img{width:18px;height:18px;border-radius:5px}.title b{color:var(--fg);letter-spacing:.12em}
+.title .sp{flex:1}.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}.dot.off{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+.nav{background:var(--top);display:flex;gap:26px;padding:0 20px;border-bottom:1px solid #0e1116}
+.nav a{padding:12px 2px 10px;font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);cursor:pointer;border-bottom:3px solid transparent}
+.nav a:hover{color:var(--hi)}.nav a.on{color:var(--hi);border-color:var(--accent)}
+main{flex:1;overflow-y:auto;min-height:0}
+.pane{display:none;padding-bottom:30px}
+.hero{position:relative;height:210px;overflow:hidden;background:#0b0d12}
+.hero::before{content:"";position:absolute;inset:-20px;background:url(/logo.png) center/cover;filter:blur(18px) saturate(1.3);opacity:.55}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#0b0d12ee 0%,#0b0d1299 45%,#1b2838dd 100%)}
+.hero>*{position:relative;z-index:1}.hero.paused::before{filter:blur(18px) grayscale(1);opacity:.3}
+.hero .in{display:flex;align-items:center;height:100%;padding:0 28px;gap:24px}
+.hero img.art{width:150px;height:150px;border-radius:18px;box-shadow:0 0 40px #7c3aed77,0 0 0 1px #ffffff22}
+.hero .big{font-size:34px;font-weight:700;color:var(--hi);letter-spacing:.02em}.hero .subt{color:var(--soft);margin-top:2px}
+.hero .stats{margin-left:auto;display:flex;gap:30px;align-self:flex-start;margin-top:26px}
+.stat{font-size:11px;letter-spacing:.08em;color:var(--dim)}.stat b{display:block;font-size:20px;color:var(--hi);letter-spacing:0;margin-top:2px}
+.pbar{position:absolute;left:0;right:0;bottom:0;height:5px;background:#ffffff14;z-index:2}.pbar i{display:block;height:100%;background:linear-gradient(90deg,#6d28d9,var(--accent));transition:width 1s linear}
+.bar2{display:flex;gap:10px;align-items:center;margin-top:14px}
+.wrap{padding:0 28px;max-width:1100px}
+.sec{display:flex;align-items:center;gap:14px;margin:26px 0 12px;font-size:20px;color:var(--hi);font-weight:600}
+.sec small{color:var(--dim);font-size:18px;font-weight:400}.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.cards{display:flex;gap:16px;flex-wrap:wrap}
+.card{background:var(--panel);border-radius:4px;padding:16px;border:1px solid #0000}
+.qr{text-align:center}.qr img{width:170px;height:170px;border-radius:4px;background:#fff}.qr p{margin:8px 0 0;color:var(--dim);font-size:12px;max-width:170px}
+.pin{font-size:36px;letter-spacing:.3em;font-weight:700;color:var(--hi)}
+button{font:inherit;font-weight:600;color:var(--fg);background:#3d4b5e;border:0;border-radius:3px;padding:9px 18px;cursor:pointer;letter-spacing:.02em}
+button:hover{background:#4c5d73;color:var(--hi)}
+button.primary,#updnow{background:linear-gradient(135deg,#a855f7,#6d28d9);color:#fff}
+button.primary:hover,#updnow:hover{filter:brightness(1.12)}
+button.bad{background:#4a2c33;color:#ffb4b4}button.bad:hover{background:#6b2f39;color:#fff}
+.item{display:flex;align-items:center;gap:16px;background:var(--row);padding:12px 16px;margin-bottom:4px;border-radius:3px}
+.item.slim{padding:8px 16px;font-size:13px}
+.item .t{font-size:16px;color:var(--hi);font-weight:600}.grow{flex:1;min-width:0}.sm{font-size:12px}
+.thumb{width:44px;height:44px;border-radius:3px;background:linear-gradient(160deg,#3b2a5c,#1b1330);display:flex;align-items:center;justify-content:center;color:var(--soft)}
+.thumb svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dim{color:var(--dim)}
+.tag{padding:2px 9px;border-radius:99px;font-size:12px;background:#a855f722;color:var(--soft)}.tag.off{background:#f8717122;color:var(--bad)}
+code{background:#0e1116;padding:2px 7px;border-radius:3px;word-break:break-all;color:var(--soft)}
+input,select{background:#12181f;color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:9px;font:inherit}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+.set{display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid var(--line)}.set:first-child{border-top:0}
+.set .d{flex:1;color:var(--dim);font-size:13px}.set .d b{display:block;color:var(--fg);font-size:14px;margin-bottom:2px}
+.foot{background:var(--top);display:flex;align-items:center;gap:18px;padding:7px 16px;font-size:12px;color:var(--dim);border-top:1px solid #0e1116}
+.foot button{background:none;padding:4px 8px;font-weight:500;color:var(--dim)}.foot button:hover{color:var(--hi);background:none}
+.foot .sp{flex:1}
 </style></head><body>
-<div style="display:flex;align-items:center;gap:14px"><img src="/logo.png" alt="" style="width:64px;height:64px;border-radius:16px;box-shadow:0 0 30px #7c3aed66"><div><h1>AOD</h1><div class="dim">Control this PC from your phone</div></div></div>
-<h2>Pair a phone</h2>
-<div class="row">
-  <div class="card qr"><img id="qa" alt="App QR"><p><b>AOD Android app</b><br>Scan inside the app, or with the phone camera.</p></div>
-  <div class="card qr"><img id="qb" alt="Browser QR"><p><b>Browser</b><br>Scan with the camera to open in Chrome.</p></div>
-  <div class="card qr" id="qrc" style="display:none"><img id="qc" alt="Remote QR"><p><b>Away from home</b><br>Browser link over Tailscale.</p></div>
-  <div class="card" style="flex:1;min-width:240px">
-    <div class="dim">PIN (changes after each pairing)</div><div class="pin" id="pin">------</div>
-    <div class="dim" style="margin:6px 0 12px">expires in <span id="exp"></span> s</div>
-    <div class="dim">Address</div><code id="url"></code>
-    <p class="dim" style="font-size:13px">You'll be asked on this PC to approve every new device.</p>
-    <button id="newpin">New PIN</button>
+<div class="title"><img src="/logo.png" alt=""><b>AOD</b><span class="dim" id="meta"></span><span class="sp"></span><span class="dim" id="st"></span><span class="dot" id="dot"></span></div>
+<div class="nav"><a data-t="home">Home</a><a data-t="devices">Devices</a><a data-t="assistant">Assistant</a><a data-t="security">Security</a><a data-t="settings">Settings</a></div>
+<main>
+<div class="pane" id="t-home">
+  <div class="hero" id="hero"><div class="in">
+    <img class="art" src="/logo.png" alt="">
+    <div><div class="big" id="big">Running</div><div class="subt" id="sub"></div>
+      <div class="bar2"><button id="pause"></button><button id="pairing"></button></div></div>
+    <div class="stats"><div class="stat">CONNECTED<b id="s-live">0</b></div><div class="stat">PAIRED<b id="s-paired">0</b></div><div class="stat">VIDEO<b id="s-video">-</b></div></div>
+  </div><div class="pbar"><i id="bar"></i></div></div>
+  <div class="wrap">
+    <div class="sec">Pair a phone</div>
+    <div class="cards">
+      <div class="card qr"><img id="qa" alt="App QR"><p><b>AOD Android app</b><br>Scan inside the app, or with the phone camera.</p></div>
+      <div class="card qr"><img id="qb" alt="Browser QR"><p><b>Browser</b><br>Scan with the camera to open in Chrome.</p></div>
+      <div class="card qr" id="qrc" style="display:none"><img id="qc" alt="Remote QR"><p><b>Away from home</b><br>Browser link over Tailscale.</p></div>
+      <div class="card" style="flex:1;min-width:250px">
+        <div class="dim">PIN (the bar above shows when it changes)</div><div class="pin" id="pin">------</div>
+        <div class="dim" style="margin:4px 0 12px">expires in <span id="exp"></span> s</div>
+        <div class="dim">Address</div><code id="url"></code>
+        <p class="dim" style="font-size:12px">You'll be asked on this PC to approve every new device.</p>
+        <button id="newpin">New PIN</button>
+      </div>
+    </div>
+    <div class="sec">Your phones <small id="ndev">0</small></div>
+    <div id="dev"></div>
   </div>
 </div>
-<h2>Status</h2>
-<div class="row" style="align-items:center">
-  <span class="tag" id="st"></span>
-  <button id="pause"></button><button id="pairing"></button>
-  <span class="dim" id="meta"></span>
-  <button class="bad" id="quit" style="margin-left:auto">Quit AOD</button>
-</div>
-<div class="dim" id="wnote" style="margin-top:8px;color:var(--bad)"></div>
-<h2>Remote access &amp; gaming</h2>
-<div class="card dim" id="remote"></div>
-<h2>Security &amp; service</h2>
-<div class="card">
-  <div class="row" style="align-items:center;gap:10px"><button id="alock"></button><span class="dim">Locks this PC about a minute after your phone disconnects (only if nobody is using the PC).</span></div>
-  <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="adl"></button><span class="dim">Sends "Download finished" notifications to your phone.</span></div>
-  <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="svc"></button><span class="dim" id="svctxt"></span></div>
-  <div class="row" style="align-items:center;gap:10px;margin-top:10px"><button id="wol">Set up Wake-on-LAN</button><span class="dim">Lets your phone switch this PC on from sleep or off when you're on home Wi-Fi. Windows asks for permission once. Also turn on "Wake on LAN" in your BIOS if it still doesn't wake.</span></div>
-</div>
-<h2>AI assistant</h2>
-<div class="card">
-  <div class="dim" id="aist" style="margin-bottom:10px"></div>
-  <div class="row" style="align-items:center;gap:8px">
-    <input id="aikey" type="password" placeholder="Anthropic API key (sk-ant-...)" autocomplete="off" style="flex:1;min-width:220px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px">
-    <select id="aimodel" style="background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px"></select>
-    <select id="aiask" style="background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px"><option value="risky">Ask only for risky actions</option><option value="all">Ask before every action</option></select>
-    <button id="aisave">Save</button><button id="aioff"></button>
+
+<div class="pane" id="t-devices"><div class="wrap">
+  <div class="sec">Paired phones</div><div id="dev2"></div>
+  <div style="margin-top:12px"><button class="bad" id="all">Unpair all</button></div>
+  <div class="sec">Recent activity</div><div id="act"></div>
+</div></div>
+
+<div class="pane" id="t-assistant"><div class="wrap">
+  <div class="sec">AI assistant</div>
+  <div class="card">
+    <div class="dim" id="aist" style="margin-bottom:12px"></div>
+    <div class="cards" style="align-items:center;gap:8px">
+      <input id="aikey" type="password" placeholder="Anthropic API key (sk-ant-...)" autocomplete="off" style="flex:1;min-width:240px">
+      <select id="aimodel"></select>
+      <select id="aiask"><option value="risky">Ask only for risky actions</option><option value="all">Ask before every action</option></select>
+      <button class="primary" id="aisave">Save</button><button id="aioff"></button>
+    </div>
+    <p class="dim" style="font-size:12px;margin:12px 0 0">Ask your PC for things in plain language from the phone's Assistant tab, including web lookups and keeping an eye on web pages. The key stays on this PC and is never sent to your phone. Screenshots and messages are sent to Anthropic only while you use the assistant, and it asks your phone before running commands or changing power.</p>
   </div>
-  <p class="dim" style="font-size:13px;margin:10px 0 0">Ask your PC for things in plain language from the phone's Assistant tab, including web lookups and keeping an eye on web pages. The key stays on this PC and is never sent to your phone. Screenshots and messages are sent to Anthropic only while you use the assistant, and it asks your phone before running commands or changing power.</p>
-</div>
-<h2>Recent activity</h2>
-<div class="card"><table id="act"></table><div style="margin-top:12px"><button class="bad" id="panic">Panic: disconnect everyone and pause AOD</button></div></div>
-<h2>Updates</h2>
-<div class="row" style="align-items:center"><span id="updtxt" class="dim"></span><button id="updnow">Check / install update</button><button id="updauto"></button></div>
-<h2>Paired devices</h2>
-<div class="card"><table id="dev"></table><div style="margin-top:12px"><button class="bad" id="all">Unpair all</button></div></div>
+</div></div>
+
+<div class="pane" id="t-security"><div class="wrap">
+  <div class="sec">Security &amp; service</div>
+  <div class="card">
+    <div class="set"><div class="d"><b>Lock when phone disconnects</b>Locks this PC about a minute after your phone disconnects (only if nobody is using the PC).</div><button id="alock"></button></div>
+    <div class="set"><div class="d"><b>Download alerts</b>Sends "Download finished" notifications to your phone.</div><button id="adl"></button></div>
+    <div class="set"><div class="d"><b>Run as a Windows service</b><span id="svctxt"></span></div><button id="svc"></button></div>
+    <div class="set"><div class="d"><b>Wake-on-LAN</b>Lets your phone switch this PC on from sleep or off when you're on home Wi-Fi. Windows asks for permission once. Also turn on "Wake on LAN" in your BIOS if it still doesn't wake.</div><button id="wol">Set up</button></div>
+  </div>
+  <div class="sec">Emergency</div>
+  <div class="card"><div class="set"><div class="d"><b>Panic</b>Disconnects every phone, stops new pairing, clears clipboard history and pauses AOD. Press Resume on the Home tab to turn it back on.</div><button class="bad" id="panic">Panic</button></div></div>
+</div></div>
+
+<div class="pane" id="t-settings"><div class="wrap">
+  <div class="sec">Remote access &amp; gaming</div>
+  <div class="card dim" id="remote"></div>
+  <div class="sec">Updates</div>
+  <div class="card"><div class="set"><div class="d"><b id="updtxt"></b></div><button id="updauto"></button><button id="updnow">Check / install update</button></div></div>
+  <div class="sec">Window</div>
+  <div class="card"><div class="dim" id="wnote" style="color:var(--bad)"></div><div class="set"><div class="d"><b>Close AOD</b>Your phone will be disconnected until you start AOD again. Closing this window only hides it to the tray.</div><button class="bad" id="quit">Quit AOD</button></div></div>
+</div></div>
+</main>
+<div class="foot"><button id="addph">＋ Pair a phone</button><span class="sp"></span><span id="foot">Checking…</span><span class="sp"></span><span><span id="nphones">0</span> connected</span><button id="quit2">Quit</button></div>
 <script>
 const H={'X-AOD-Admin':'1'};const $=i=>document.getElementById(i);
 const post=p=>fetch('/_admin/'+p,{method:'POST',headers:H}).then(load);
@@ -75,29 +136,32 @@ $('panic').onclick=()=>{if(confirm('Disconnect every phone, stop new pairing and
 $('wol').onclick=()=>{post('wol');alert('Approve the Windows permission prompt. Then test from the phone app while the PC sleeps.')};
 $('svc').onclick=()=>{if(window._s.service){if(confirm('Stop running as a service? AOD will no longer start at boot.'))post('service_remove')}else if(confirm('Run AOD as a Windows service? It starts at boot, works on the lock screen and admin prompts. Windows will ask for permission.'))post('service_install')};
 $('updnow').onclick=()=>post('update');$('updauto').onclick=()=>post('autoupd');
-$('quit').onclick=async()=>{if(!confirm('Close AOD? Your phone will be disconnected and remote control stops until you start AOD again.'))return;clearInterval(window._t);await fetch('/_admin/quit',{method:'POST',headers:H}).catch(()=>{});document.body.innerHTML='<div style="padding:60px;text-align:center"><h1>AOD has been closed</h1><p class=dim>You can close this tab. Start AOD again from the Start menu or start_aod.bat.</p></div>';};
+$('quit').onclick=$('quit2').onclick=async()=>{if(!confirm('Close AOD? Your phone will be disconnected and remote control stops until you start AOD again.'))return;clearInterval(window._t);await fetch('/_admin/quit',{method:'POST',headers:H}).catch(()=>{});document.body.innerHTML='<div style="padding:60px;text-align:center;color:#c7d5e0"><h1>AOD has been closed</h1><p class=dim>You can close this tab. Start AOD again from the Start menu or start_aod.bat.</p></div>';};
 $('all').onclick=()=>confirm('Unpair every phone?')&&post('revoke_all');
 let lastPin='';
+function tab(n){document.querySelectorAll('.pane').forEach(p=>p.style.display=p.id==='t-'+n?'block':'none');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.t===n));try{localStorage.setItem('aod_tab',n)}catch{}}
+document.querySelectorAll('.nav a').forEach(a=>a.onclick=()=>tab(a.dataset.t));$('addph').onclick=()=>tab('home');
+tab((()=>{try{return localStorage.getItem('aod_tab')||'home'}catch{return 'home'}})());
 async function load(){
   const s=await (await fetch('/_admin/state')).json();
   $('pin').textContent=s.pin;$('exp').textContent=Math.max(0,s.pin_expires);$('url').textContent=s.url;
   if(s.pin!==lastPin){lastPin=s.pin;const n=Date.now();$('qa').src='/_admin/qr.png?kind=app&n='+n;$('qb').src='/_admin/qr.png?kind=web&n='+n;if(s.tailscale){$('qc').src='/_admin/qr.png?kind=remote&n='+n;}}
   $('qrc').style.display=s.tailscale?'block':'none';
   $('remote').innerHTML=(s.tailscale?'<span class="tag">Tailscale connected</span> your PC is reachable away from home at <code>'+s.tailscale+'</code>. The AOD app switches to it automatically when you leave Wi-Fi.':'<span class="tag off">Tailscale not found</span> To use AOD away from home, install <b>Tailscale</b> (tailscale.com/download) on this PC and your phone and sign in to the same account. Then reopen this page.')+'<br><br>Gaming mode: screen capture <b>'+(s.dx?'fast (DXGI)':'standard')+'</b> · Xbox controller emulation <b>'+(s.pad?'available':'needs the ViGEmBus driver')+'</b>'+(s.pad?'':' <button id="vig" onclick="post(\'vigem\');alert(\'Run the installer that opens, then restart AOD.\')">Install controller driver</button>');
-  $('act').innerHTML=(s.activity||[]).map(a=>`<tr><td class="dim" style="white-space:nowrap">${new Date(a.ts*1000).toLocaleString()}</td><td>${a.text.replace(/</g,'&lt;')}</td><td class="dim">${a.ip||''}</td></tr>`).join('')||'<tr><td class="dim">Nothing yet.</td></tr>';
+  $('act').innerHTML=(s.activity||[]).map(a=>`<div class="item slim"><div class="grow">${a.text.replace(/</g,'&lt;')}</div><div class="dim sm">${a.ip||''}</div><div class="dim sm" style="min-width:150px;text-align:right">${new Date(a.ts*1000).toLocaleString()}</div></div>`).join('')||'<div class="dim" style="padding:14px 4px">Nothing yet.</div>';
   window._ai=s.ai;if(!$('aimodel').options.length){$('aimodel').innerHTML=s.ai.models.map(m=>`<option>${m}</option>`).join('');}
   if(document.activeElement!==$('aimodel')&&document.activeElement!==$('aiask')){$('aimodel').value=s.ai.model;$('aiask').value=s.ai.ask;}
   $('aist').innerHTML=(s.ai.has_key?'<span class="tag">Key saved</span>':'<span class="tag off">No key yet</span>')+' '+(s.ai.enabled?'Assistant is on.':'Assistant is turned off.');
   $('aioff').textContent=s.ai.enabled?'Turn off':'Turn on';
   $('wnote').textContent=s.window_error?'Desktop window unavailable: '+s.window_error:'';
-  $('st').textContent=s.enabled?'Running':'Paused';$('st').className='tag'+(s.enabled?'':' off');
-  $('pause').textContent=s.enabled?'Pause (disconnect everyone)':'Resume';
+  $('st').textContent=s.enabled?'Running':'Paused';$('dot').className='dot'+(s.enabled?'':' off');$('st').className='tag'+(s.enabled?'':' off');$('s-live').textContent=s.live||0;$('s-paired').textContent=s.devices.length;$('s-video').textContent=s.rtc?'WebRTC':'JPEG';$('bar').style.width=Math.max(0,Math.min(100,s.pin_expires/6))+'%';$('ndev').textContent=s.devices.length;$('nphones').textContent=s.live||0;
+  $('pause').textContent=s.enabled?'PAUSE':'RESUME';$('pause').className=s.enabled?'':'primary';$('hero').classList.toggle('paused',!s.enabled);$('big').textContent=s.enabled?'Running':'Paused';$('sub').textContent=s.enabled?(s.live?s.live+' phone'+(s.live>1?'s':'')+' connected':'Waiting for a phone to connect'):'Remote control is switched off';
   $('pairing').textContent=s.pairing_allowed?'Stop allowing new devices':'Allow new devices';
-  $('meta').textContent='v'+s.version+' · video: '+(s.rtc?'WebRTC H.264':'JPEG fallback');
-  window._s=s.settings;$('alock').textContent='Lock PC when phone disconnects: '+(s.settings.autolock?'on':'off');$('adl').textContent='Download alerts: '+(s.settings.notify_downloads?'on':'off');
-  $('svc').textContent=s.settings.service?'Stop running as a service':'Run as a service (boot + lock screen)';$('svctxt').textContent=s.settings.service?'Service mode is ON: AOD starts at boot and can control the sign-in screen and admin prompts.':'Not a service: AOD starts when you sign in and cannot control the lock screen.';
-  const u=s.update;$('updtxt').textContent='v'+u.current+' · '+u.status;$('updauto').textContent='Auto-update: '+(u.auto?'on':'off');
-  $('dev').innerHTML=s.devices.length?s.devices.map(d=>`<tr><td><b>${d.name.replace(/</g,'&lt;')}</b><div class="dim">${d.ip||''}</div></td><td class="dim">last seen ${new Date(d.last_seen*1000).toLocaleString()}</td><td style="text-align:right"><button class="bad" onclick="post('revoke?id=${d.id}')">Unpair</button></td></tr>`).join(''):'<tr><td class="dim">No devices paired yet.</td></tr>';
+  $('meta').textContent='v'+s.version;
+  window._s=s.settings;$('alock').textContent=s.settings.autolock?'ON':'OFF';$('alock').className=s.settings.autolock?'primary':'';$('adl').textContent=s.settings.notify_downloads?'ON':'OFF';$('adl').className=s.settings.notify_downloads?'primary':'';
+  $('svc').textContent=s.settings.service?'REMOVE':'INSTALL';$('svc').className=s.settings.service?'bad':'';$('svctxt').textContent=s.settings.service?'Service mode is ON: AOD starts at boot and can control the sign-in screen and admin prompts.':'Not a service: AOD starts when you sign in and cannot control the lock screen.';
+  const u=s.update;$('updtxt').textContent='v'+u.current+' · '+u.status;$('foot').textContent=u.status;$('updauto').textContent='Auto-update: '+(u.auto?'on':'off');$('updauto').className=u.auto?'':'';
+  const rows=s.devices.length?s.devices.map(d=>`<div class="item"><div class="thumb">${'<svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>'}</div><div class="grow"><div class="t">${d.name.replace(/</g,'&lt;')}</div><div class="dim sm">${d.ip||''} · last seen ${new Date(d.last_seen*1000).toLocaleString()}</div></div><button class="bad" onclick="post('revoke?id=${d.id}')">Unpair</button></div>`).join(''):'<div class="dim" style="padding:14px 4px">No phones paired yet. Scan a code on the Home tab.</div>';$('dev').innerHTML=rows;$('dev2').innerHTML=rows;
 }
 load();window._t=setInterval(load,2000);
 </script></body></html>
