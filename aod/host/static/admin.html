@@ -98,6 +98,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent)}
 #wiz .skip{position:absolute;top:16px;right:20px;background:none;color:#948ba8}
 </style></head><body>
 <div id="splash"><img src="/logo.png" alt=""><b>AOD</b><i></i></div>
+<script>try{var _s=document.getElementById("splash");if(sessionStorage.getItem("aod_splash"))_s.remove();else sessionStorage.setItem("aod_splash","1")}catch(e){}</script>
 <div id="done"><div style="position:relative;display:flex;align-items:center;justify-content:center;width:96px;height:96px"><span class="burst"></span><span class="burst b2"></span><svg class="okmark" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/><path d="M30 52l14 14 27-30"/></svg></div><h2 id="doneT">Connected</h2><p id="doneS"></p></div>
 <div id="wiz"><button class="skip" id="wskip">Skip setup</button><div class="stepbox" id="wbox"></div><div class="dots" id="wdots"><i></i><i></i><i></i></div></div>
 <div class="title"><img src="/logo.png" alt=""><b>AOD</b><span class="dim" id="meta"></span><span class="sp"></span><span class="dim" id="st"></span><span class="dot" id="dot"></span></div>
