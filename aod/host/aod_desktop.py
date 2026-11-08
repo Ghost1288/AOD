@@ -21,6 +21,10 @@ if WIN:
     _u.CloseDesktop.argtypes = [wintypes.HANDLE]
     _u.GetUserObjectInformationW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
                                              ctypes.POINTER(wintypes.DWORD)]
+    _u.WindowFromPoint.restype = wintypes.HWND
+    _u.WindowFromPoint.argtypes = [wintypes.POINT]
+    _u.GetAncestor.restype = wintypes.HWND
+    _u.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
 
     def _name(h) -> str:
         buf, need = ctypes.create_unicode_buffer(256), wintypes.DWORD()
@@ -94,3 +98,28 @@ def window_rect(hwnd):
         return (r.left, r.top, w, hh) if w >= 64 and hh >= 64 else None
     except Exception:
         return None
+
+
+def window_at_point(x: int, y: int):
+    """Top-level window hwnd under the given screen point, or 0 (Windows only)."""
+    if not WIN:
+        return 0
+    try:
+        pt = wintypes.POINT(int(x), int(y))
+        h = _u.WindowFromPoint(pt)
+        if not h:
+            return 0
+        root = _u.GetAncestor(h, 2)            # GA_ROOT
+        h = root or h
+        if h == _u.GetShellWindow() or not _u.IsWindowVisible(h):
+            return 0
+        n = _u.GetWindowTextLengthW(h)
+        if not n:
+            return 0
+        r = wintypes.RECT()
+        _u.GetWindowRect(h, ctypes.byref(r))
+        if r.right - r.left < 120 or r.bottom - r.top < 80:
+            return 0
+        return int(h)
+    except Exception:
+        return 0

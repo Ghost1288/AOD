@@ -1,3 +1,4 @@
 soundcard
 dxcam
 pywebview>=5.3
+pycaw

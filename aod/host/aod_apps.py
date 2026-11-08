@@ -45,7 +45,7 @@ def launch(target: str) -> bool:
     target = target.strip()
     if not target:
         return False
-    is_path_or_url = target.lower().startswith(("http://", "https://")) or Path(target).exists()
+    is_path_or_url = "://" in target or target.lower().startswith(("http://", "https://")) or Path(target).exists()
     if SERVICE and WIN:                      # we run as SYSTEM: start things as the signed-in user instead
         import aod_launcher
         cmd = f'cmd.exe /c start "" "{target}"' if is_path_or_url else f"cmd.exe /c {target}"
@@ -73,14 +73,28 @@ def run_cmd(cmd: str, timeout: int = 20) -> dict:
 
 
 # ---- shortcut buttons
-TYPES = {"keys", "text", "launch", "run", "power"}
+TYPES = {"keys", "text", "launch", "run", "power", "scene"}
+
+
+DEFAULT_SCENES = [
+    {"id": "gaming", "label": "Gaming", "icon": "", "type": "scene",
+     "value": json.dumps({"launch": "", "volume": 80, "client": {"sc": 0.85, "q": 75, "fps": 60}})},
+    {"id": "work", "label": "Work", "icon": "", "type": "scene",
+     "value": json.dumps({"launch": "", "volume": 35, "client": {"sc": 0.7, "q": 60, "fps": 20}})},
+    {"id": "movie", "label": "Movie", "icon": "", "type": "scene",
+     "value": json.dumps({"launch": "", "volume": 65, "client": {"sc": 1.0, "q": 80, "fps": 30}})},
+]
 
 
 def load_shortcuts() -> list:
     try:
         return json.loads(SHORTCUTS.read_text())
     except Exception:
-        return []
+        try:
+            save_shortcuts(DEFAULT_SCENES)
+        except Exception:
+            pass
+        return list(DEFAULT_SCENES)
 
 
 def save_shortcuts(items) -> list:

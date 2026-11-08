@@ -35,6 +35,7 @@ import aod_rtc
 import aod_security as sec
 import aod_settings
 import aod_ai
+import aod_games
 import aod_watch
 import aod_window
 import aod_update
@@ -189,7 +190,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     sessions.add(ws)
     loop = asyncio.get_running_loop()
 
-    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0, "game": False, "win": 0}
+    st = {"mon": 1, "scale": 0.6, "quality": 55, "fps": 15, "rtc_scale": 1.0, "game": False, "win": 0, "follow": False}
     gi = aod_gameinput.GameInput()
     mons = await capturer.monitors()
     tasks, pcs = {}, []
@@ -212,7 +213,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     async def send_info():
         m = mon_geom()
         await ws.send_json({"t": "info", "monitors": len(mons), "current": st["mon"],
-                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK, "win": st["win"], "ai": aod_ai.public()["enabled"] and aod_ai.public()["has_key"],
+                            "w": m["width"], "h": m["height"], "rtc": aod_rtc.RTC_OK, "win": st["win"], "follow": st["follow"], "ai": aod_ai.public()["enabled"] and aod_ai.public()["has_key"],
                             "pad": aod_gamepad.importable(), "version": APP_VERSION})
 
     async def jpeg_loop():
@@ -225,16 +226,22 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     async def cursor_loop():
         last = None
         last_win = 0
+        tick = 0
         while not ws.closed:
             if st["game"]:
                 await asyncio.sleep(0.25)
                 continue
             aod_desktop.sync()
+            x, y = mouse.position
+            tick += 1
+            if st["follow"] and tick % 8 == 0:        # check ~every 0.3s, not every frame
+                hwnd = await loop.run_in_executor(None, aod_desktop.window_at_point, x, y)
+                if hwnd and hwnd != st["win"]:
+                    st["win"] = hwnd
             m = mon_geom()
             if st["win"] != last_win:
                 last_win = st["win"]
                 await send_info()
-            x, y = mouse.position
             cur = (round((x - m["left"]) / m["width"], 4), round((y - m["top"]) / m["height"], 4))
             if cur != last:
                 last = cur
@@ -341,6 +348,12 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
                 st["win"] = int(msg.get("hwnd") or 0)
                 if st["win"] and not aod_desktop.window_rect(st["win"]):
                     st["win"] = 0
+                st["follow"] = False
+                await send_info()
+            elif t == "follow":
+                st["follow"] = bool(msg.get("on"))
+                if not st["follow"] and not st["win"]:
+                    pass
                 await send_info()
             elif t == "jpeg":
                 if "jpeg" not in tasks:
@@ -500,6 +513,52 @@ async def api_watch_action(request):
         return web.json_response({"ok": aod_watch.remove(wid)})
     st_ = await asyncio.get_running_loop().run_in_executor(None, aod_watch.check, wid, events.push)
     return web.json_response({"status": st_})
+
+
+async def api_games(request):
+    authed(request)
+    games = await asyncio.get_running_loop().run_in_executor(None, aod_games.list_games)
+    return web.json_response(games)
+
+
+async def api_game_launch(request):
+    authed(request)
+    b = await request.json()
+    appid = str(b.get("appid", ""))
+    ok = await asyncio.get_running_loop().run_in_executor(None, aod_apps.launch, aod_games.launch_uri(appid))
+    log_activity("games", f"launched Steam app {appid}", request)
+    return web.json_response({"ok": ok})
+
+
+async def api_game_art(request):
+    authed(request)
+    data = await asyncio.get_running_loop().run_in_executor(None, aod_games.art_bytes, request.match_info["appid"])
+    if not data:
+        raise web.HTTPNotFound()
+    return web.Response(body=data, content_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
+async def api_scene_run(request):
+    authed(request)
+    b = await request.json()
+    sc = next((x for x in aod_apps.load_shortcuts() if x.get("type") == "scene" and x.get("id") == b.get("id")), None)
+    if not sc:
+        return web.json_response({"error": "Scene not found"}, status=404)
+    try:
+        cfg = json.loads(sc.get("value") or "{}")
+    except Exception:
+        cfg = {}
+
+    def run():
+        if cfg.get("launch"):
+            aod_apps.launch(cfg["launch"])
+        if cfg.get("volume") is not None:
+            feat.set_volume(cfg["volume"])
+        return True
+    await asyncio.get_running_loop().run_in_executor(None, run)
+    log_activity("scene", f"applied scene: {sc.get('label', '')}", request)
+    events.push("Scene applied", sc.get("label", ""))
+    return web.json_response({"ok": True, "client": cfg.get("client") or {}})
 
 
 async def api_windows(request):
@@ -821,6 +880,10 @@ def make_app() -> web.Application:
     r.add_get("/api/download", api_download)
     r.add_get("/api/screenshot", api_screenshot)
     r.add_get("/api/windows", api_windows)
+    r.add_get("/api/games", api_games)
+    r.add_post("/api/games/launch", api_game_launch)
+    r.add_get("/api/games/art/{appid}", api_game_art)
+    r.add_post("/api/scenes/run", api_scene_run)
     r.add_get("/api/watches", api_watches)
     r.add_post("/api/watches", api_watches)
     r.add_post("/api/watches/{a}", api_watch_action)

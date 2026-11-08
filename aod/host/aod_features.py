@@ -276,3 +276,34 @@ def install_vigem() -> None:
             os.startfile(str(dest))             # shows the normal installer + UAC prompt
     except Exception as e:
         print("ViGEmBus install failed:", e)
+
+
+# ---------------------------------------------------------------- volume
+def set_volume(percent) -> bool:
+    """Set the system (master) output volume to 0-100. Uses pycaw when installed; otherwise steps the
+    volume keys to approximate it (less precise, but needs no extra install)."""
+    percent = max(0, min(100, int(percent)))
+    if sys.platform != "win32":
+        return False
+    try:
+        from ctypes import POINTER, cast
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        speakers = AudioUtilities.GetSpeakers()
+        itf = speakers.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        vol = cast(itf, POINTER(IAudioEndpointVolume))
+        vol.SetMute(0, None)
+        vol.SetMasterVolumeLevelScalar(percent / 100.0, None)
+        return True
+    except Exception:
+        pass
+    try:                                       # fallback: no pycaw, step the media keys
+        import pynput.keyboard
+        kb = pynput.keyboard.Controller()
+        for _ in range(32):
+            kb.tap(pynput.keyboard.Key.media_volume_down)
+        for _ in range(round(percent / 2)):
+            kb.tap(pynput.keyboard.Key.media_volume_up)
+        return True
+    except Exception:
+        return False
