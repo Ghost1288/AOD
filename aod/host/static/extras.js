@@ -25,7 +25,20 @@
   .gcard .cfg{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:8px;background:#000a;display:flex;align-items:center;justify-content:center;font-size:14px}
   #gSet{position:fixed;inset:0;z-index:95;background:#000a;display:none;align-items:flex-end;justify-content:center}
   #gSet .box{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:420px;padding:16px;display:flex;flex-direction:column;gap:10px}
-  #gSet select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px}`;
+  #gSet select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px}
+  #streamPanel{position:fixed;inset:0;z-index:85;background:var(--bg);display:none;flex-direction:column}
+  #streamPanel .gvh{display:flex;align-items:center;gap:10px;padding:14px 16px;font-size:20px;font-weight:700}
+  #streamPanel .gbody{flex:1;overflow-y:auto;padding:0 14px 20px}
+  #streamAdd{display:flex;gap:8px;margin-bottom:14px}
+  #streamAdd select{flex:0 0 100px}#streamAdd input{flex:1}
+  #streamAdd select,#streamAdd input{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}
+  .strow{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  .strow .av{width:40px;height:40px;border-radius:50%;background:#241a38;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+  .strow .nm{flex:1;min-width:0}
+  .strow .nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .strow .nm small{color:var(--dim);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .strow .live{font-size:11px;font-weight:700;color:#ff4d4d;border:1px solid #ff4d4d;border-radius:6px;padding:2px 6px;flex:none}
+  .strow .rm{flex:none;min-height:30px;padding:2px 10px}`;
   document.head.appendChild(css);
 
   const toastEl = Object.assign(document.createElement('div'), {id: 'toast'});
@@ -52,7 +65,7 @@
   const page = $('apps-page');
   page.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:6px 0">My shortcuts</h3>
-      <div style="display:flex;gap:6px"><button id="gamesBtn" style="min-height:34px;padding:2px 12px">🎮 Games</button><button id="scEdit" style="min-height:34px;padding:2px 12px">Edit</button><button id="scNew" class="primary" style="min-height:34px;padding:2px 12px">+ New</button></div></div>
+      <div style="display:flex;gap:6px"><button id="gamesBtn" style="min-height:34px;padding:2px 12px">🎮 Games</button><button id="streamBtn" style="min-height:34px;padding:2px 12px">📺 Streams</button><button id="scEdit" style="min-height:34px;padding:2px 12px">Edit</button><button id="scNew" class="primary" style="min-height:34px;padding:2px 12px">+ New</button></div></div>
     <div class="grid" id="scGrid"></div><p class="dim" id="scEmpty" style="display:none">No shortcuts yet. Tap <b>+ New</b> to make a button for a key combo, some text, an app, a website or a command.</p>
     <h3>Open an app</h3><input type="search" id="appQ" placeholder="Search apps on your PC…"><div class="list" id="appList" style="margin-top:6px"></div>
     <h3>Run a command</h3><div style="display:flex;gap:8px"><input type="text" id="cmdIn" placeholder="e.g. ipconfig  or  shutdown /a"><button id="cmdRun" class="primary">Run</button></div>
@@ -173,6 +186,44 @@
   };
   $('gSetCancel').onclick = () => gSet.style.display = 'none';
   $('gSetSave').onclick = () => { try { store.set(gKey(gEditing), $('gSetQ').value); } catch {} gSet.style.display = 'none'; toast('Saved'); };
+
+  // ---------- Streamers (Twitch / Kick "is it live" tracking)
+  const streamPanel = Object.assign(document.createElement('div'), {id: 'streamPanel'});
+  streamPanel.innerHTML = `<div class="gvh"><span style="flex:1">📺 Streams</span><button id="stBack" style="min-height:34px;padding:2px 12px">Back</button></div>
+    <div class="gbody">
+      <div id="streamAdd"><select id="stPlat"><option value="twitch">Twitch</option><option value="kick">Kick</option></select>
+        <input type="text" id="stName" placeholder="Username"><button id="stAdd" class="primary" style="min-height:40px;padding:2px 16px">Add</button></div>
+      <div id="stList"></div></div>`;
+  document.body.appendChild(streamPanel);
+  function strowHtml(ch) {
+    const url = ch.platform === 'twitch' ? `https://twitch.tv/${ch.name}` : `https://kick.com/${ch.name}`;
+    return `<div class="strow" data-url="${esc(url)}"><div class="av">${ch.platform === 'twitch' ? '🟣' : '🟢'}</div>
+      <div class="nm"><b>${esc(ch.label || ch.name)}</b><small>${ch.live ? esc(ch.title || 'Live now') : (ch.platform === 'twitch' ? 'Twitch' : 'Kick') + ' · offline'}</small></div>
+      ${ch.live ? '<span class="live">LIVE</span>' : ''}<button class="rm" data-rm="${esc(ch.id)}">✕</button></div>`;
+  }
+  async function loadStreams() {
+    let d = {channels: [], twitch_ready: false}; try { d = await (await api('/api/streamers')).json(); } catch {}
+    $('stList').innerHTML = d.channels.length ? d.channels.map(strowHtml).join('') :
+      '<p class="dim">Not tracking anyone yet. Add a Twitch or Kick username above and I\'ll notify you when they go live.</p>';
+    if (!d.twitch_ready) $('stList').innerHTML += '<p class="dim" style="font-size:13px">Add a free Twitch app Client ID + secret on the PC dashboard to track Twitch streamers. Kick needs no setup.</p>';
+  }
+  $('streamBtn').onclick = () => { streamPanel.style.display = 'flex'; loadStreams(); };
+  $('stBack').onclick = () => streamPanel.style.display = 'none';
+  $('stAdd').onclick = async () => {
+    const name = $('stName').value.trim(); if (!name) return;
+    $('stAdd').disabled = true;
+    try {
+      const r = await post('/api/streamers', {platform: $('stPlat').value, name});
+      if (r.error) { toast(r.error); return; }
+      $('stName').value = ''; toast('Tracking ' + (r.label || r.name)); loadStreams();
+    } finally { $('stAdd').disabled = false; }
+  };
+  $('stList').onclick = async e => {
+    const rm = e.target.closest('[data-rm]');
+    if (rm) { await post('/api/streamers/' + rm.dataset.rm + '/delete', {}); loadStreams(); return; }
+    const row = e.target.closest('[data-url]'); if (row) window.open(row.dataset.url, '_blank');
+  };
+  $('stName').onkeydown = e => { if (e.key === 'Enter') $('stAdd').click(); };
 
   // ---------- Power tab: smart settings
   const power = document.querySelector('#v-power .page'), smart = document.createElement('div'); smart.id = 'smart';

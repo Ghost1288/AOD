@@ -36,6 +36,7 @@ import aod_security as sec
 import aod_settings
 import aod_ai
 import aod_games
+import aod_streams
 import aod_watch
 import aod_window
 import aod_update
@@ -515,6 +516,26 @@ async def api_watch_action(request):
     return web.json_response({"status": st_})
 
 
+async def api_streamers(request):
+    authed(request)
+    loop = asyncio.get_running_loop()
+    if request.method == "POST":
+        b = await request.json()
+        try:
+            r = await loop.run_in_executor(None, lambda: aod_streams.add_channel(
+                str(b.get("platform", "")), str(b.get("name", "")), str(b.get("label", ""))))
+            log_activity("streamer", f"tracking {b.get('platform')}/{b.get('name')}", request)
+            return web.json_response(r)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+    return web.json_response(await loop.run_in_executor(None, aod_streams.public))
+
+
+async def api_streamer_delete(request):
+    authed(request)
+    return web.json_response({"ok": aod_streams.remove_channel(request.match_info["id"])})
+
+
 async def api_games(request):
     authed(request)
     games = await asyncio.get_running_loop().run_in_executor(None, aod_games.list_games)
@@ -776,7 +797,7 @@ async def admin_state(request):
         "live": len(sessions), "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error, "activity": recent_activity(15), "ai": aod_ai.public(),
         "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
         "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable(),
-        "settings": settings_payload()})
+        "settings": settings_payload(), "streamers": aod_streams.config_public()})
 
 
 def qr_png(data: str) -> bytes:
@@ -829,6 +850,10 @@ async def admin_action(request):
     elif a == "ai_config":
         body = await request.json()
         aod_ai.update({k: body[k] for k in ("key", "clear_key", "model", "enabled", "ask") if k in body})
+    elif a == "streamers_config":
+        body = await request.json()
+        aod_streams.update_config(body.get("twitch_client_id"), body.get("twitch_client_secret"),
+                                  bool(body.get("clear_secret")))
     elif a == "panic":
         log_activity("panic", "panic pressed on the PC")
         do_panic()
@@ -887,6 +912,9 @@ def make_app() -> web.Application:
     r.add_get("/api/watches", api_watches)
     r.add_post("/api/watches", api_watches)
     r.add_post("/api/watches/{a}", api_watch_action)
+    r.add_get("/api/streamers", api_streamers)
+    r.add_post("/api/streamers", api_streamers)
+    r.add_post("/api/streamers/{id}/delete", api_streamer_delete)
     r.add_get("/api/activity", api_activity)
     r.add_get("/api/clips", api_clips)
     r.add_post("/api/panic", api_panic)
@@ -1029,6 +1057,7 @@ def main() -> None:
     updater.start()
     events.start_download_watcher()
     aod_watch.start(events.push)
+    aod_streams.start(events.push)
     hidden = "--hidden" in argv
     headless = SERVICE or os.environ.get("AOD_NO_BROWSER") == "1"
     for _ in range(50):                    # wait until the dashboard server answers

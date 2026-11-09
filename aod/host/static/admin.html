@@ -148,6 +148,16 @@ input:focus,select:focus{outline:none;border-color:var(--accent)}
     </div>
     <p class="dim" style="font-size:12px;margin:12px 0 0">Ask your PC for things in plain language from the phone's Assistant tab, including web lookups and keeping an eye on web pages. The key stays on this PC and is never sent to your phone. Screenshots and messages are sent to Anthropic only while you use the assistant, and it asks your phone before running commands or changing power.</p>
   </div>
+  <div class="sec">Streamers (Twitch / Kick)</div>
+  <div class="card">
+    <div class="dim" id="ststatus" style="margin-bottom:12px"></div>
+    <div class="cards" style="align-items:center;gap:8px">
+      <input id="twid" type="text" placeholder="Twitch Client ID" autocomplete="off" style="flex:1;min-width:200px">
+      <input id="twsec" type="password" placeholder="Twitch Client secret" autocomplete="off" style="flex:1;min-width:200px">
+      <button class="primary" id="twsave">Save</button>
+    </div>
+    <p class="dim" style="font-size:12px;margin:12px 0 0">Free at <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:inherit">dev.twitch.tv/console/apps</a> &mdash; register an app, set the OAuth redirect to <code>http://localhost</code>, then copy the Client ID and generate a new secret. This uses an app-only token, never your Twitch login. Pick which streamers to track from your phone's Apps &gt; 📺 Streams. Kick needs no setup.</p>
+  </div>
 </div></div>
 
 <div class="pane" id="t-security"><div class="wrap">
@@ -182,6 +192,7 @@ $('alock').onclick=()=>post('setting?k=autolock&v='+(window._s.autolock?0:1));$(
 const jpost=(p,b)=>fetch('/_admin/'+p,{method:'POST',headers:{...H,'content-type':'application/json'},body:JSON.stringify(b)}).then(load);
 $('aisave').onclick=()=>{const b={model:$('aimodel').value,ask:$('aiask').value};if($('aikey').value.trim())b.key=$('aikey').value.trim();jpost('ai_config',b);$('aikey').value=''};
 $('aioff').onclick=()=>jpost('ai_config',{enabled:!window._ai.enabled});
+$('twsave').onclick=()=>{const b={};if($('twid').value.trim())b.twitch_client_id=$('twid').value.trim();if($('twsec').value.trim())b.twitch_client_secret=$('twsec').value.trim();jpost('streamers_config',b);$('twsec').value=''};
 $('panic').onclick=()=>{if(confirm('Disconnect every phone, stop new pairing and pause AOD? Use Resume to turn it back on.'))post('panic')};
 $('wol').onclick=()=>{post('wol');alert('Approve the Windows permission prompt. Then test from the phone app while the PC sleeps.')};
 $('svc').onclick=()=>{if(window._s.service){if(confirm('Stop running as a service? AOD will no longer start at boot.'))post('service_remove')}else if(confirm('Run AOD as a Windows service? It starts at boot, works on the lock screen and admin prompts. Windows will ask for permission.'))post('service_install')};
@@ -216,6 +227,8 @@ async function load(){
   if(document.activeElement!==$('aimodel')&&document.activeElement!==$('aiask')){$('aimodel').value=s.ai.model;$('aiask').value=s.ai.ask;}
   $('aist').innerHTML=(s.ai.has_key?'<span class="tag">Key saved</span>':'<span class="tag off">No key yet</span>')+' '+(s.ai.enabled?'Assistant is on.':'Assistant is turned off.');
   $('aioff').textContent=s.ai.enabled?'Turn off':'Turn on';
+  if(document.activeElement!==$('twid')&&document.activeElement!==$('twsec'))$('twid').value=s.streamers.twitch_client_id||'';
+  $('ststatus').innerHTML=(s.streamers.has_secret?'<span class="tag">Twitch connected</span>':'<span class="tag off">Twitch not set up</span>')+' Kick needs no setup.';
   $('wnote').textContent=s.window_error?'Desktop window unavailable: '+s.window_error:'';
   if(prevCount===null){prevCount=s.devices.length;if(!s.devices.length&&!flag()){wizOn=true;wiz(0)}}
   else if(s.devices.length>prevCount){prevCount=s.devices.length;if(wizOn)wizDone();celebrate('Phone connected','Approved and paired. You can control this PC now.')}
