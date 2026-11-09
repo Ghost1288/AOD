@@ -13,6 +13,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -71,22 +72,40 @@ class Updater:
 
     # ---- network
     def _open(self, name: str, timeout: int = 20):
-        req = urllib.request.Request(BASE_URL + name, headers={"User-Agent": "AOD-updater"})
+        # A normal browser UA, not a custom one: some antivirus/proxy filters quietly block uncommon
+        # User-Agents on download links even though the server itself doesn't care.
+        req = urllib.request.Request(BASE_URL + name,
+                                     headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AOD-updater"})
         return urllib.request.urlopen(req, timeout=timeout)
+
+    @staticmethod
+    def _explain(e: Exception) -> str:
+        if isinstance(e, urllib.error.HTTPError):
+            return f"HTTP {e.code}" + ({401: " (unauthorized)", 403: " (blocked)", 404: " (not found)",
+                                        429: " (rate limited, try later)"}.get(e.code, ""))
+        if isinstance(e, urllib.error.URLError):
+            return str(getattr(e, "reason", e) or e)[:80]
+        return e.__class__.__name__
 
     def check(self) -> bool:
         self.status = "Checking for updates..."
         self._note("Checking for updates...")
-        try:
-            with self._open("version.json") as r:
-                self.latest = json.load(r)
-            self.status = (f"Update available: {self.latest['version']}" if self.available()
-                           else "Up to date")
-            self._note(f"Update found: {self.latest['version']}. Installing when no phone is connected."
-                       if self.available() else f"You're up to date (v{aod_version.VERSION}).")
-        except Exception as e:
-            self.status = f"Couldn't check for updates ({e.__class__.__name__})"
-            self._note("Couldn't check for updates. Will try again later.")
+        last_err = None
+        for attempt in range(2):                 # one retry: GitHub's CDN occasionally blips
+            try:
+                with self._open("version.json") as r:
+                    self.latest = json.load(r)
+                self.status = (f"Update available: {self.latest['version']}" if self.available()
+                               else "Up to date")
+                self._note(f"Update found: {self.latest['version']}. Installing when no phone is connected."
+                           if self.available() else f"You're up to date (v{aod_version.VERSION}).")
+                return self.available()
+            except Exception as e:
+                last_err = e
+                if attempt == 0:
+                    time.sleep(2)
+        self.status = f"Couldn't check for updates ({self._explain(last_err)})"
+        self._note("Couldn't check for updates. Will try again later.")
         return self.available()
 
     def available(self) -> bool:
