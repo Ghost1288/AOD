@@ -82,7 +82,9 @@ class Updater:
     def _explain(e: Exception) -> str:
         if isinstance(e, urllib.error.HTTPError):
             return f"HTTP {e.code}" + ({401: " (unauthorized)", 403: " (blocked)", 404: " (not found)",
-                                        429: " (rate limited, try later)"}.get(e.code, ""))
+                                        429: " (rate limited, try later)", 502: " (GitHub hiccup, try again)",
+                                        503: " (GitHub hiccup, try again)",
+                                        504: " (GitHub hiccup, try again)"}.get(e.code, ""))
         if isinstance(e, urllib.error.URLError):
             return str(getattr(e, "reason", e) or e)[:80]
         return e.__class__.__name__
@@ -122,8 +124,17 @@ class Updater:
                 "service": os.environ.get("AOD_SERVICE") == "1"}
 
     def _download(self, name: str, dest: Path) -> None:
-        with self._open(name, timeout=60) as r, open(dest, "wb") as f:
-            shutil.copyfileobj(r, f)
+        last_err = None
+        for attempt in range(3):              # GitHub's release CDN occasionally 502s/504s briefly after a new release
+            try:
+                with self._open(name, timeout=60) as r, open(dest, "wb") as f:
+                    shutil.copyfileobj(r, f)
+                return
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(3 * (attempt + 1))
+        raise last_err
 
     # ---- apply
     def apply(self) -> None:
@@ -139,7 +150,7 @@ class Updater:
             else:
                 self._apply_zip(tmp)
         except Exception as e:
-            self.status = f"Update failed: {e}"
+            self.status = f"Update failed: {self._explain(e)}"
             self.applying = False
 
     def _apply_installer(self, tmp: Path) -> None:

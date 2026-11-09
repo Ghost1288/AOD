@@ -101,3 +101,48 @@ def test_public_hides_internal_state(monkeypatch):
     u = make_updater(monkeypatch)
     p = u.public()
     assert set(p) == {"current", "latest", "available", "status", "auto", "mode", "service"}
+
+
+def test_download_retries_on_gateway_timeout_then_succeeds(tmp_path, monkeypatch):
+    u = make_updater(monkeypatch)
+    calls = {"n": 0}
+
+    def flaky(name, timeout=60):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise urllib.error.HTTPError("url", 504, "Gateway Time-out", {}, None)
+        return fake_response({"ok": True})
+
+    monkeypatch.setattr(u, "_open", flaky)
+    dest = tmp_path / "out.bin"
+    u._download("thing", dest)
+    assert calls["n"] == 3
+    assert dest.exists()
+
+
+def test_download_gives_up_after_three_failures(tmp_path, monkeypatch):
+    u = make_updater(monkeypatch)
+
+    def always_fails(name, timeout=60):
+        raise urllib.error.HTTPError("url", 504, "Gateway Time-out", {}, None)
+
+    monkeypatch.setattr(u, "_open", always_fails)
+    try:
+        u._download("thing", tmp_path / "out.bin")
+        raise AssertionError("should have raised")
+    except urllib.error.HTTPError as e:
+        assert e.code == 504
+
+
+def test_apply_failure_shows_friendly_gateway_hint(monkeypatch):
+    u = make_updater(monkeypatch)
+    u.latest = {"version": "9.9.9", "build": aod_version.BUILD + 1, "exe": "AOD-Setup.exe"}
+
+    def always_504(name, timeout=60):
+        raise urllib.error.HTTPError("url", 504, "Gateway Time-out", {}, None)
+
+    monkeypatch.setattr(u, "_open", always_504)
+    monkeypatch.setattr(aod_update, "FROZEN", False)      # exercise the zip path (no os._exit on failure either way)
+    u.apply()
+    assert u.status == "Update failed: HTTP 504 (GitHub hiccup, try again)"
+    assert u.applying is False
