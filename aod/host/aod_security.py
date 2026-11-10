@@ -74,7 +74,7 @@ def tailscale_ip():
 # connection silently times out even though the host is listening and reachable. A rule that
 # explicitly covers every profile fixes that; we (re)apply it on every startup since it's cheap
 # and idempotent, and because the compiled installer runs unprivileged and never gets a chance to.
-FIREWALL_RULE = "AOD host"
+FIREWALL_RULE = "AOD-host"  # no space: avoids shell-quoting pitfalls when someone copy-pastes firewall_cmd
 firewall_status = ""        # "" = not Windows / not tried yet, "ok", or "failed"
 firewall_cmd = ""           # the exact command to run as Administrator when "failed"
 
@@ -88,9 +88,13 @@ def ensure_firewall_rule(port: int) -> str:
     cmd = ["netsh", "advfirewall", "firewall", "add", "rule", f"name={FIREWALL_RULE}",
            "dir=in", "action=allow", "protocol=TCP", f"localport={port}", "profile=any",
            "remoteip=LocalSubnet,100.64.0.0/10"]
-    firewall_cmd = " ".join(cmd)
+    import shlex
+    firewall_cmd = shlex.join(cmd)   # quotes anything with spaces, so a copy-pasted command is never silently split
     try:
         subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={FIREWALL_RULE}"],
+                       capture_output=True, timeout=10)
+        # also clean up the old space-containing rule name from earlier builds, if present
+        subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", "name=AOD host"],
                        capture_output=True, timeout=10)
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         firewall_status = "ok" if r.returncode == 0 else "failed"
