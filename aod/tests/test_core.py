@@ -122,3 +122,55 @@ def test_wol_magic_packet():
             raise AssertionError
         except ValueError:
             pass
+
+
+# ---------------------------------------------------------------- firewall rule (Tailscale fix)
+
+def test_firewall_rule_skipped_off_windows(monkeypatch):
+    monkeypatch.setattr(sec.sys, "platform", "linux")
+    assert sec.ensure_firewall_rule(8765) == "ok"
+
+
+def test_firewall_rule_succeeds_on_windows(monkeypatch):
+    monkeypatch.setattr(sec.sys, "platform", "win32")
+    calls = []
+
+    class FakeResult:
+        returncode = 0
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return FakeResult()
+
+    import subprocess as real_subprocess
+    monkeypatch.setattr(real_subprocess, "run", fake_run)
+    assert sec.ensure_firewall_rule(8765) == "ok"
+    add_cmd = calls[-1]
+    assert "profile=any" in add_cmd and "remoteip=LocalSubnet,100.64.0.0/10" in add_cmd
+    assert "localport=8765" in add_cmd
+    assert sec.firewall_status == "ok"
+
+
+def test_firewall_rule_reports_failure_without_admin(monkeypatch):
+    monkeypatch.setattr(sec.sys, "platform", "win32")
+
+    class FakeResult:
+        returncode = 1
+
+    import subprocess as real_subprocess
+    monkeypatch.setattr(real_subprocess, "run", lambda *a, **k: FakeResult())
+    assert sec.ensure_firewall_rule(8765) == "failed"
+    assert sec.firewall_status == "failed"
+    assert "netsh" in sec.firewall_cmd and "profile=any" in sec.firewall_cmd
+
+
+def test_firewall_rule_survives_netsh_missing(monkeypatch):
+    monkeypatch.setattr(sec.sys, "platform", "win32")
+
+    import subprocess as real_subprocess
+
+    def boom(*a, **k):
+        raise FileNotFoundError("netsh not found")
+
+    monkeypatch.setattr(real_subprocess, "run", boom)
+    assert sec.ensure_firewall_rule(8765) == "failed"

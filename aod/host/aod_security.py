@@ -68,6 +68,37 @@ def tailscale_ip():
     return None
 
 
+# ---------------------------------------------------------------- firewall
+# Windows classifies Tailscale's virtual adapter as a "Public" network. Windows' own first-run
+# "allow this app?" prompt normally only grants Private, so LAN pairing works but a Tailscale
+# connection silently times out even though the host is listening and reachable. A rule that
+# explicitly covers every profile fixes that; we (re)apply it on every startup since it's cheap
+# and idempotent, and because the compiled installer runs unprivileged and never gets a chance to.
+FIREWALL_RULE = "AOD host"
+firewall_status = ""        # "" = not Windows / not tried yet, "ok", or "failed"
+firewall_cmd = ""           # the exact command to run as Administrator when "failed"
+
+
+def ensure_firewall_rule(port: int) -> str:
+    global firewall_status, firewall_cmd
+    if sys.platform != "win32":
+        firewall_status = "ok"
+        return firewall_status
+    import subprocess
+    cmd = ["netsh", "advfirewall", "firewall", "add", "rule", f"name={FIREWALL_RULE}",
+           "dir=in", "action=allow", "protocol=TCP", f"localport={port}", "profile=any",
+           "remoteip=LocalSubnet,100.64.0.0/10"]
+    firewall_cmd = " ".join(cmd)
+    try:
+        subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={FIREWALL_RULE}"],
+                       capture_output=True, timeout=10)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        firewall_status = "ok" if r.returncode == 0 else "failed"
+    except Exception:
+        firewall_status = "failed"
+    return firewall_status
+
+
 # ---------------------------------------------------------------- TLS cert
 def ensure_cert():
     """Create a long-lived self-signed cert once. Returns (cert, key, sha256 fingerprint).

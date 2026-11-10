@@ -797,7 +797,8 @@ async def admin_state(request):
         "live": len(sessions), "devices": devices.public_list(), "version": APP_VERSION, "window_error": aod_window.last_error, "activity": recent_activity(15), "ai": aod_ai.public(),
         "rtc": aod_rtc.RTC_OK, "fingerprint": FINGERPRINT, "update": updater.public(),
         "tailscale": sec.tailscale_ip(), "dx": aod_rtc.DX_OK, "pad": aod_gamepad.importable(),
-        "settings": settings_payload(), "streamers": aod_streams.config_public()})
+        "settings": settings_payload(), "streamers": aod_streams.config_public(),
+        "firewall": sec.firewall_status, "firewall_cmd": sec.firewall_cmd})
 
 
 def qr_png(data: str) -> bytes:
@@ -1053,6 +1054,7 @@ def main() -> None:
     except Exception:
         pass
     threading.Thread(target=server_thread, daemon=True).start()
+    threading.Thread(target=lambda: sec.ensure_firewall_rule(PORT), daemon=True).start()
     aod_tray.start(ADMIN_URL, state, devices, set_enabled, updater, open_ui=show_ui, panic=do_panic)
     updater.start()
     events.start_download_watcher()

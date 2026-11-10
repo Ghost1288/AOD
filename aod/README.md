@@ -42,6 +42,11 @@ Install **Tailscale** (tailscale.com/download) on the PC and the phone and sign 
 automatically: the dashboard shows a third QR, and the Android app uses the PC's Tailscale address whenever the home
 Wi-Fi address can't be reached. Traffic is encrypted by Tailscale as well as by AOD's own HTTPS. Wake-on-LAN only works at home.
 
+AOD tries to open itself up to Tailscale in Windows Firewall automatically on every startup. If the phone still times
+out specifically over Tailscale (LAN works fine, but it connects): Windows usually treats Tailscale's network adapter
+as "Public" and only lets AOD through on your home ("Private") network, so AOD couldn't fix the rule itself — the
+dashboard's Away from home card shows the exact command to run once as Administrator to fix it.
+
 ## Gaming mode
 
 Tap **🎮 Game** on the Screen tab. It goes landscape, switches to 60 fps with a high-bitrate low-latency stream, and shows:
